@@ -200,7 +200,7 @@ task rawSpanEndToEndTest(type: Test) {
     startDataPrepper2Task.mustRunAfter 'startOpenSearchDockerContainer'
     // wait for data-preppers to be ready
     doFirst {
-        sleep(10*1000)
+        sleep(15*1000)
     }
 
     description = 'Runs the raw span integration tests.'
@@ -237,7 +237,7 @@ task rawSpanCompatibilityEndToEndTest(type: Test) {
     startDataPrepper2Task.mustRunAfter 'startOpenSearchDockerContainer'
     // wait for data-preppers to be ready
     doFirst {
-        sleep(10*1000)
+        sleep(15*1000)
     }
 
     description = 'Runs the raw span compatibility integration tests.'
@@ -274,7 +274,7 @@ task serviceMapEndToEndTest(type: Test) {
     startDataPrepper2Task.mustRunAfter 'startOpenSearchDockerContainer'
     // wait for data-preppers to be ready
     doFirst {
-        sleep(10*1000)
+        sleep(15*1000)
     }
 
     description = 'Runs the service-map integration tests.'
