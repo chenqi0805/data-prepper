@@ -50,7 +50,7 @@ subprojects {
     }
     dependencies {
         implementation 'com.google.guava:guava:29.0-jre'
-        implementation platform('io.micrometer:micrometer-bom:1.7.3')
+        implementation platform('io.micrometer:micrometer-bom:1.8.1')
         implementation 'org.slf4j:slf4j-api:1.7.30'
         testImplementation platform("org.junit:junit-bom:${versionMap.junitJupiter}")
         testImplementation 'org.junit.jupiter:junit-jupiter'
