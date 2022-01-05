@@ -53,8 +53,8 @@ import java.util.stream.Collectors;
 public class OTelProtoCodec {
     private static final ObjectMapper OBJECT_MAPPER =  new ObjectMapper();
     private static final long NANO_MULTIPLIER = 1_000 * 1_000 * 1_000;
-    private static final String SERVICE_NAME = "service.name";
-    private static final String SPAN_ATTRIBUTES = "span.attributes";
+    protected static final String SERVICE_NAME = "service.name";
+    protected static final String SPAN_ATTRIBUTES = "span.attributes";
     static final String RESOURCE_ATTRIBUTES = "resource.attributes";
     static final String INSTRUMENTATION_LIBRARY_NAME = "instrumentationLibrary.name";
     static final String INSTRUMENTATION_LIBRARY_VERSION = "instrumentationLibrary.version";
@@ -74,7 +74,7 @@ public class OTelProtoCodec {
     public static final Function<String, String> SPAN_ATTRIBUTES_REPLACE_DOT_WITH_AT = i -> SPAN_ATTRIBUTES + DOT + i.replace(DOT, AT);
     public static final Function<String, String> RESOURCE_ATTRIBUTES_REPLACE_DOT_WITH_AT = i -> RESOURCE_ATTRIBUTES + DOT + i.replace(DOT, AT);
 
-    private static String convertUnixNanosToISO8601(final long unixNano) {
+    public static String convertUnixNanosToISO8601(final long unixNano) {
         return Instant.ofEpochSecond(0L, unixNano).toString();
     }
 
@@ -288,13 +288,13 @@ public class OTelProtoCodec {
     }
 
     public static class OTelProtoEncoder {
-        private static final String SERVICE_NAME_ATTRIBUTE = "service@name";
-        private static final String RESOURCE_ATTRIBUTES_PREFIX = RESOURCE_ATTRIBUTES + DOT;
-        private static final String SPAN_ATTRIBUTES_PREFIX = SPAN_ATTRIBUTES + DOT;
+        protected static final String SERVICE_NAME_ATTRIBUTE = "service@name";
+        protected static final String RESOURCE_ATTRIBUTES_PREFIX = RESOURCE_ATTRIBUTES + DOT;
+        protected static final String SPAN_ATTRIBUTES_PREFIX = SPAN_ATTRIBUTES + DOT;
 
         public static ResourceSpans convertToResourceSpans(final Span span) throws UnsupportedEncodingException, DecoderException {
             final ResourceSpans.Builder rsBuilder = ResourceSpans.newBuilder();
-            final Resource resource = constructResource(span);
+            final Resource resource = constructResource(span.getServiceName(), span.getAttributes());
             rsBuilder.setResource(resource);
             final InstrumentationLibrarySpans.Builder instrumentationLibrarySpansBuilder = InstrumentationLibrarySpans.newBuilder();
             final InstrumentationLibrary instrumentationLibrary = constructInstrumentationLibrary(span.getAttributes());
@@ -321,15 +321,16 @@ public class OTelProtoCodec {
             return result;
         }
 
-        public static Resource constructResource(final Span span) throws UnsupportedEncodingException {
+        public static Resource constructResource(final String serviceName, final Map<String, Object> attributes) throws UnsupportedEncodingException {
             final Resource.Builder rsBuilder = Resource.newBuilder();
-            final List<KeyValue> resourceAttributes = getResourceAttributes(span.getAttributes());
+            final List<KeyValue> resourceAttributes = getResourceAttributes(attributes);
             rsBuilder.addAllAttributes(resourceAttributes);
-            final KeyValue serviceNameKeyValue = KeyValue.newBuilder()
-                    .setKey(SERVICE_NAME)
-                    .setValue(AnyValue.newBuilder().setStringValue(span.getServiceName()))
-                    .build();
-            rsBuilder.addAttributes(serviceNameKeyValue);
+            if (serviceName != null) {
+                final KeyValue.Builder serviceNameKeyValueBuilder = KeyValue.newBuilder()
+                        .setKey(SERVICE_NAME)
+                        .setValue(objectToAnyValue(serviceName));
+                rsBuilder.addAttributes(serviceNameKeyValueBuilder);
+            }
             return rsBuilder.build();
         }
 
@@ -439,7 +440,9 @@ public class OTelProtoCodec {
 
         public static AnyValue objectToAnyValue(final Object obj) throws UnsupportedEncodingException {
             final AnyValue.Builder anyValueBuilder = AnyValue.newBuilder();
-            if (obj instanceof Integer || obj instanceof Long) {
+            if (obj == null) {
+                return anyValueBuilder.build();
+            } else if (obj instanceof Integer || obj instanceof Long) {
                 anyValueBuilder.setIntValue(((Number) obj).longValue());
             } else if (obj instanceof String) {
                 anyValueBuilder.setStringValue((String) obj);
