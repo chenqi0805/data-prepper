@@ -574,11 +574,19 @@ public class OTelProtoCodecTest {
             final InstrumentationLibrarySpans instrumentationLibrarySpans = rs.getInstrumentationLibrarySpans(0);
             assertThat(instrumentationLibrarySpans.getInstrumentationLibrary(), equalTo(InstrumentationLibrary.getDefaultInstance()));
             assertThat(instrumentationLibrarySpans.getSpansCount(), equalTo(1));
-            final io.opentelemetry.proto.trace.v1.Span span = instrumentationLibrarySpans.getSpans(0);
-            assertThat(span.getSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getSpanId()))));
-            assertThat(span.getParentSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getParentSpanId()))));
-            assertThat(span.getTraceState(), equalTo(testSpan.getTraceState()));
-            // TODO: more assertion
+            final io.opentelemetry.proto.trace.v1.Span otelProtoSpan = instrumentationLibrarySpans.getSpans(0);
+            assertThat(otelProtoSpan.getTraceId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getTraceId()))));
+            assertThat(otelProtoSpan.getSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getSpanId()))));
+            assertThat(otelProtoSpan.getParentSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getParentSpanId()))));
+            assertThat(otelProtoSpan.getName(), equalTo(testSpan.getName()));
+            assertThat(otelProtoSpan.getKind(), equalTo(io.opentelemetry.proto.trace.v1.Span.SpanKind.valueOf(testSpan.getKind())));
+            assertThat(otelProtoSpan.getTraceState(), equalTo(testSpan.getTraceState()));
+            assertThat(otelProtoSpan.getEventsCount(), equalTo(0));
+            assertThat(otelProtoSpan.getDroppedEventsCount(), equalTo(0));
+            assertThat(otelProtoSpan.getLinksCount(), equalTo(0));
+            assertThat(otelProtoSpan.getDroppedLinksCount(), equalTo(0));
+            assertThat(otelProtoSpan.getAttributesCount(), equalTo(0));
+            assertThat(otelProtoSpan.getDroppedAttributesCount(), equalTo(0));
         }
 
         private Span buildSpanFromJsonFile(final String jsonFileName) {
