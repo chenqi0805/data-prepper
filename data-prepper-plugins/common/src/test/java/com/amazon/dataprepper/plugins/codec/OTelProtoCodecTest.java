@@ -11,8 +11,12 @@
 
 package com.amazon.dataprepper.plugins.codec;
 
+import com.amazon.dataprepper.model.trace.DefaultLink;
+import com.amazon.dataprepper.model.trace.DefaultSpanEvent;
 import com.amazon.dataprepper.model.trace.DefaultTraceGroupFields;
+import com.amazon.dataprepper.model.trace.Link;
 import com.amazon.dataprepper.model.trace.Span;
+import com.amazon.dataprepper.model.trace.SpanEvent;
 import com.amazon.dataprepper.model.trace.TraceGroupFields;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +30,8 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.resource.v1.Resource;
 import io.opentelemetry.proto.trace.v1.Status;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.UUID;
 
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.INSTRUMENTATION_LIBRARY_NAME;
@@ -51,6 +58,8 @@ import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncod
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.constructInstrumentationLibrary;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.constructResource;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.constructSpanStatus;
+import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.convertSpanEvent;
+import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.convertSpanLink;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.getResourceAttributes;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.getSpanAttributes;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.SERVICE_NAME;
@@ -69,8 +78,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class OTelProtoCodecTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
+    private static final Random RANDOM = new Random();
     private static final String TEST_REQUEST_JSON_FILE = "test-request.json";
+
+    private byte[] getRandomBytes(int len) {
+        byte[] bytes = new byte[len];
+        RANDOM.nextBytes(bytes);
+        return bytes;
+    }
 
     private Map<String, Object> returnMap(final String jsonStr) throws JsonProcessingException {
         return (Map<String, Object>) OBJECT_MAPPER.readValue(jsonStr, Map.class);
@@ -498,10 +513,48 @@ public class OTelProtoCodecTest {
         }
 
         @Test
-        public void testEncodeSpanEvents() {}
+        public void testEncodeSpanEvent() throws UnsupportedEncodingException {
+            final String testName = "test name";
+            final long testTimeNanos = System.nanoTime();
+            final String testTime = convertUnixNanosToISO8601(testTimeNanos);
+            final String testKey = "test key";
+            final String testValue = "test value";
+            final SpanEvent testSpanEvent = DefaultSpanEvent.builder()
+                    .withName(testName)
+                    .withDroppedAttributesCount(0)
+                    .withTime(testTime)
+                    .withAttributes(Map.of(testKey, testValue))
+                    .build();
+            final io.opentelemetry.proto.trace.v1.Span.Event result = convertSpanEvent(testSpanEvent);
+            assertThat(result.getAttributesCount(), equalTo(1));
+            assertThat(result.getDroppedAttributesCount(), equalTo(0));
+            assertThat(result.getName(), equalTo(testName));
+            assertThat(result.getTimeUnixNano(), equalTo(testTimeNanos));
+        }
 
         @Test
-        public void testEncodeSpanLinks() {}
+        public void testEncodeSpanLink() throws DecoderException, UnsupportedEncodingException {
+            final byte[] testSpanIdBytes = getRandomBytes(16);
+            final byte[] testTraceIdBytes = getRandomBytes(16);
+            final String testSpanId = Hex.encodeHexString(testSpanIdBytes);
+            final String testTraceId = Hex.encodeHexString(testTraceIdBytes);
+            final String testTraceState = "test state";
+            final String testKey = "test key";
+            final String testValue = "test value";
+            final Link testSpanLink = DefaultLink.builder()
+                    .withSpanId(testSpanId)
+                    .withTraceId(testTraceId)
+                    .withTraceState(testTraceState)
+                    .withDroppedAttributesCount(0)
+                    .withAttributes(Map.of(testKey, testValue))
+                    .build();
+            final io.opentelemetry.proto.trace.v1.Span.Link result = convertSpanLink(testSpanLink);
+            assertThat(result.getAttributesCount(), equalTo(1));
+            assertThat(result.getDroppedAttributesCount(), equalTo(0));
+            assertThat(result.getSpanId().toByteArray(), equalTo(testSpanIdBytes));
+            assertThat(result.getTraceId().toByteArray(), equalTo(testTraceIdBytes));
+            assertThat(result.getTraceState(), equalTo(testTraceState));
+        }
 
         private class UnsupportedEncodingClass { }
     }
