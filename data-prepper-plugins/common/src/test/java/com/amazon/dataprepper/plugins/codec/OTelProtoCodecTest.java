@@ -14,11 +14,13 @@ package com.amazon.dataprepper.plugins.codec;
 import com.amazon.dataprepper.model.trace.DefaultLink;
 import com.amazon.dataprepper.model.trace.DefaultSpanEvent;
 import com.amazon.dataprepper.model.trace.DefaultTraceGroupFields;
+import com.amazon.dataprepper.model.trace.JacksonSpan;
 import com.amazon.dataprepper.model.trace.Link;
 import com.amazon.dataprepper.model.trace.Span;
 import com.amazon.dataprepper.model.trace.SpanEvent;
 import com.amazon.dataprepper.model.trace.TraceGroupFields;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.JsonFormat;
@@ -29,6 +31,8 @@ import io.opentelemetry.proto.common.v1.InstrumentationLibrary;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.resource.v1.Resource;
+import io.opentelemetry.proto.trace.v1.InstrumentationLibrarySpans;
+import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.Status;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -42,6 +46,7 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.INSTRUMENTATION_LIBRARY_NAME;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.INSTRUMENTATION_LIBRARY_VERSION;
@@ -60,6 +66,7 @@ import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncod
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.constructSpanStatus;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.convertSpanEvent;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.convertSpanLink;
+import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.convertToResourceSpans;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.getResourceAttributes;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.OTelProtoEncoder.getSpanAttributes;
 import static com.amazon.dataprepper.plugins.codec.OTelProtoCodec.SERVICE_NAME;
@@ -73,6 +80,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class OTelProtoCodecTest {
@@ -80,6 +88,7 @@ public class OTelProtoCodecTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Random RANDOM = new Random();
     private static final String TEST_REQUEST_JSON_FILE = "test-request.json";
+    private static final String TEST_SPAN_EVENT_JSON_FILE = "test-span-event.json";
 
     private byte[] getRandomBytes(int len) {
         byte[] bytes = new byte[len];
@@ -556,6 +565,64 @@ public class OTelProtoCodecTest {
             assertThat(result.getTraceState(), equalTo(testTraceState));
         }
 
+        @Test
+        public void testEncodeResourceSpans() throws DecoderException, UnsupportedEncodingException {
+            final Span testSpan = buildSpanFromJsonFile(TEST_SPAN_EVENT_JSON_FILE);
+            final ResourceSpans rs = convertToResourceSpans(testSpan);
+            assertThat(rs.getResource(), equalTo(Resource.getDefaultInstance()));
+            assertThat(rs.getInstrumentationLibrarySpansCount(), equalTo(1));
+            final InstrumentationLibrarySpans instrumentationLibrarySpans = rs.getInstrumentationLibrarySpans(0);
+            assertThat(instrumentationLibrarySpans.getInstrumentationLibrary(), equalTo(InstrumentationLibrary.getDefaultInstance()));
+            assertThat(instrumentationLibrarySpans.getSpansCount(), equalTo(1));
+            final io.opentelemetry.proto.trace.v1.Span span = instrumentationLibrarySpans.getSpans(0);
+            assertThat(span.getSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getSpanId()))));
+            assertThat(span.getParentSpanId(), equalTo(ByteString.copyFrom(Hex.decodeHex(testSpan.getParentSpanId()))));
+            assertThat(span.getTraceState(), equalTo(testSpan.getTraceState()));
+            // TODO: more assertion
+        }
+
+        private Span buildSpanFromJsonFile(final String jsonFileName) {
+            JacksonSpan.Builder spanBuilder = JacksonSpan.builder();
+            try (final InputStream inputStream = Objects.requireNonNull(
+                    OTelProtoCodecTest.class.getClassLoader().getResourceAsStream(jsonFileName))){
+                final Map<String, Object> spanMap = OBJECT_MAPPER.readValue(inputStream, new TypeReference<Map<String, Object>>() {});
+                final String traceId = (String) spanMap.get("traceId");
+                final String spanId = (String) spanMap.get("spanId");
+                final String parentSpanId = (String) spanMap.get("parentSpanId");
+                final String traceState = (String) spanMap.get("traceState");
+                final String name = (String) spanMap.get("name");
+                final String kind = (String) spanMap.get("kind");
+                final Long durationInNanos = ((Number) spanMap.get("durationInNanos")).longValue();
+                final String startTime = (String) spanMap.get("startTime");
+                final String endTime = (String) spanMap.get("endTime");
+                spanBuilder = spanBuilder
+                        .withTraceId(traceId)
+                        .withSpanId(spanId)
+                        .withParentSpanId(parentSpanId)
+                        .withTraceState(traceState)
+                        .withName(name)
+                        .withKind(kind)
+                        .withDurationInNanos(durationInNanos)
+                        .withStartTime(startTime)
+                        .withEndTime(endTime)
+                        .withTraceGroup(null);
+                DefaultTraceGroupFields.Builder traceGroupFieldsBuilder = DefaultTraceGroupFields.builder();
+                if (parentSpanId.isEmpty()) {
+                    final Integer statusCode = (Integer) ((Map<String, Object>) spanMap.get("traceGroupFields")).get("statusCode");
+                    traceGroupFieldsBuilder = traceGroupFieldsBuilder
+                            .withStatusCode(statusCode)
+                            .withEndTime(endTime)
+                            .withDurationInNanos(durationInNanos);
+                    final String traceGroup = (String) spanMap.get("traceGroup");
+                    spanBuilder = spanBuilder.withTraceGroup(traceGroup);
+                }
+                spanBuilder.withTraceGroupFields(traceGroupFieldsBuilder.build());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return spanBuilder.build();
+        }
+
         private class UnsupportedEncodingClass { }
     }
 
@@ -567,5 +634,21 @@ public class OTelProtoCodecTest {
         assertThat(nanoCodecResult, equalTo(testNanos));
         final String stringCodecResult = convertUnixNanosToISO8601(timeISO8601ToNanos(timeISO8601));
         assertThat(stringCodecResult, equalTo(timeISO8601));
+    }
+
+    @Test
+    public void testOTelProtoCodecConsistency() throws IOException, DecoderException {
+        final ExportTraceServiceRequest request = buildExportTraceServiceRequestFromJsonFile(TEST_REQUEST_JSON_FILE);
+        final List<Span> spansFirstDec = OTelProtoCodec.OTelProtoDecoder.parseExportTraceServiceRequest(request);
+        final List<ResourceSpans> resourceSpansList = new ArrayList<>();
+        for (final Span span: spansFirstDec) {
+            resourceSpansList.add(convertToResourceSpans(span));
+        }
+        final List<Span> spansSecondDec = resourceSpansList.stream()
+                .flatMap(rs -> OTelProtoCodec.OTelProtoDecoder.parseResourceSpans(rs).stream()).collect(Collectors.toList());
+        assertThat(spansFirstDec.size(), equalTo(spansSecondDec.size()));
+        for (int i = 0; i < spansFirstDec.size(); i++) {
+            assertThat(spansFirstDec.get(i).toJsonString(), equalTo(spansSecondDec.get(i).toJsonString()));
+        }
     }
 }
