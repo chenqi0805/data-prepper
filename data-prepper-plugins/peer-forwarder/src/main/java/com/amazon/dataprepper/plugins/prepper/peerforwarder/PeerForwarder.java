@@ -113,7 +113,7 @@ public class PeerForwarder extends AbstractPrepper<Record<Span>, Record<Span>> {
         }
 
         final List<Record<Span>> recordsToProcessLocally = new ArrayList<>();
-        final Map<CompletableFuture<ExportTraceServiceRequest>, List<Span>> forwardedRequestFuturesToSpans = new HashMap<>();
+        final Map<CompletableFuture<List<Record<Span>>>, List<Span>> forwardRecordsFuturesToSpans = new HashMap<>();
 
         for (final Map.Entry<String, List<Span>> entry : spansByEndPoint.entrySet()) {
             final TraceServiceGrpc.TraceServiceBlockingStub client = getClient(entry.getKey());
@@ -124,40 +124,34 @@ public class PeerForwarder extends AbstractPrepper<Record<Span>, Record<Span>> {
                 continue;
             }
 
-            // Create ExportTraceRequest for storing single batch of spans
-            ExportTraceServiceRequest.Builder currRequestBuilder = ExportTraceServiceRequest.newBuilder();
             List<Span> currBatchSpans = new ArrayList<>();
             for (final Span span : entry.getValue()) {
-                try {
-                    final ResourceSpans rs = oTelProtoEncoder.convertToResourceSpans(span);
-                    currRequestBuilder.addResourceSpans(rs);
-                    currBatchSpans.add(span);
-                } catch (UnsupportedEncodingException | DecoderException e) {
-                    LOG.error("failed to encode span with spanId: {} into opentelemetry-protobuf, span will be processed locally.",
-                            span.getSpanId(), e);
-                    recordsToProcessLocally.add(new Record<>(span));
-                }
+                currBatchSpans.add(span);
                 if (currBatchSpans.size() >= maxNumSpansPerRequest) {
-                    final ExportTraceServiceRequest currRequest = currRequestBuilder.build();
-                    forwardedRequestFuturesToSpans.put(processRequest(client, currRequest), currBatchSpans);
-                    currRequestBuilder = ExportTraceServiceRequest.newBuilder();
+                    final List<Span> finalCurrBatchSpans = currBatchSpans;
+                    forwardRecordsFuturesToSpans.put(
+                            CompletableFuture.supplyAsync(() ->
+                                            forwardBatchSpans(client, finalCurrBatchSpans),
+                            executorService), currBatchSpans);
                     currBatchSpans = new ArrayList<>();
                 }
             }
             // Dealing with the last batch request
             if (currBatchSpans.size() > 0) {
-                final ExportTraceServiceRequest currRequest = currRequestBuilder.build();
-                forwardedRequestFuturesToSpans.put(processRequest(client, currRequest), currBatchSpans);
+                final List<Span> finalCurrBatchSpans = currBatchSpans;
+                forwardRecordsFuturesToSpans.put(
+                        CompletableFuture.supplyAsync(() ->
+                                        forwardBatchSpans(client, finalCurrBatchSpans),
+                        executorService), currBatchSpans);
             }
         }
 
-        for (final Map.Entry<CompletableFuture<ExportTraceServiceRequest>, List<Span>> entry : forwardedRequestFuturesToSpans.entrySet()) {
+        for (final Map.Entry<CompletableFuture<List<Record<Span>>>, List<Span>> entry : forwardRecordsFuturesToSpans.entrySet()) {
             try {
-                final CompletableFuture<ExportTraceServiceRequest> future = entry.getKey();
-                final ExportTraceServiceRequest request = future.get();
-                if (request != null) {
-                    final List<Span> spansFailedToForward = entry.getValue();
-                    recordsToProcessLocally.addAll(spansFailedToForward.stream().map(Record::new).collect(Collectors.toList()));
+                final CompletableFuture<List<Record<Span>>> future = entry.getKey();
+                final List<Record<Span>> failedRecords = future.get();
+                if (failedRecords != null && !failedRecords.isEmpty()) {
+                    recordsToProcessLocally.addAll(failedRecords);
                 }
             } catch (InterruptedException | ExecutionException e) {
                 LOG.error("Problem with asynchronous peer forwarding, current batch of spans will be processed locally.", e);
@@ -169,35 +163,42 @@ public class PeerForwarder extends AbstractPrepper<Record<Span>, Record<Span>> {
         return recordsToProcessLocally;
     }
 
-    /**
-     * Asynchronously forwards a request to the peer address. Returns a record with an empty payload if
-     * the request succeeds, otherwise the payload will contain the failed ExportTraceServiceRequest to
-     * be processed locally.
-     */
-    private CompletableFuture<ExportTraceServiceRequest> processRequest(final TraceServiceGrpc.TraceServiceBlockingStub client,
-                                                     final ExportTraceServiceRequest request) {
-        final String peerIp = client.getChannel().authority();
-        final Timer forwardRequestTimer = forwardRequestTimers.computeIfAbsent(
-                peerIp, ip -> pluginMetrics.timerWithTags(LATENCY, DESTINATION, ip));
-        final Counter forwardedRequestCounter = forwardedRequestCounters.computeIfAbsent(
-                peerIp, ip -> pluginMetrics.counterWithTags(REQUESTS, DESTINATION, ip));
-        final Counter forwardRequestErrorCounter = forwardRequestErrorCounters.computeIfAbsent(
-                peerIp, ip -> pluginMetrics.counterWithTags(ERRORS, DESTINATION, ip));
+    private List<Record<Span>> forwardBatchSpans(final TraceServiceGrpc.TraceServiceBlockingStub client, final List<Span> batchSpans) {
+        ExportTraceServiceRequest.Builder currRequestBuilder = ExportTraceServiceRequest.newBuilder();
+        final List<Record<Span>> recordsToProcessLocally = new ArrayList<>();
+        final List<Span> spansToBeForwarded = new ArrayList<>();
+        for (final Span span : batchSpans) {
+            try {
+                final ResourceSpans rs = oTelProtoEncoder.convertToResourceSpans(span);
+                currRequestBuilder.addResourceSpans(rs);
+                spansToBeForwarded.add(span);
+            } catch (UnsupportedEncodingException | DecoderException e) {
+                LOG.error("failed to encode span with spanId: {} into opentelemetry-protobuf, span will be processed locally.",
+                        span.getSpanId(), e);
+                recordsToProcessLocally.add(new Record<>(span));
+            }
+        }
 
-        final CompletableFuture<ExportTraceServiceRequest> callFuture = CompletableFuture.supplyAsync(() ->
-        {
+        if (currRequestBuilder.getResourceSpansCount() > 0) {
+            final ExportTraceServiceRequest request = currRequestBuilder.build();
+            final String peerIp = client.getChannel().authority();
+            final Timer forwardRequestTimer = forwardRequestTimers.computeIfAbsent(
+                    peerIp, ip -> pluginMetrics.timerWithTags(LATENCY, DESTINATION, ip));
+            final Counter forwardedRequestCounter = forwardedRequestCounters.computeIfAbsent(
+                    peerIp, ip -> pluginMetrics.counterWithTags(REQUESTS, DESTINATION, ip));
+            final Counter forwardRequestErrorCounter = forwardRequestErrorCounters.computeIfAbsent(
+                    peerIp, ip -> pluginMetrics.counterWithTags(ERRORS, DESTINATION, ip));
+
             forwardedRequestCounter.increment();
             try {
                 forwardRequestTimer.record(() -> client.export(request));
-                return null;
             } catch (Exception e) {
                 LOG.error("Failed to forward request to address: {}", peerIp, e);
                 forwardRequestErrorCounter.increment();
-                return request;
+                recordsToProcessLocally.addAll(spansToBeForwarded.stream().map(Record::new).collect(Collectors.toList()));
             }
-        }, executorService);
-
-        return callFuture;
+        }
+        return recordsToProcessLocally;
     }
 
     private TraceServiceGrpc.TraceServiceBlockingStub getClient(final String address) {

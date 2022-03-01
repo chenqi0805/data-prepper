@@ -354,9 +354,7 @@ public class PeerForwarderTest {
             final Channel channel = mock(Channel.class);
             final String peerIp = testIps.get(1);
             final String fullPeerIp = String.format("%s:21890", peerIp);
-            when(channel.authority()).thenReturn(fullPeerIp);
             when(peerClientPool.getClient(peerIp)).thenReturn(client);
-            when(client.getChannel()).thenReturn(channel);
 
             MetricsTestUtil.initMetrics();
             final PeerForwarder testPeerForwarder = generatePeerForwarder(testIps, 3);
