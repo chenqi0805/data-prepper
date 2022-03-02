@@ -7,6 +7,7 @@ package com.amazon.dataprepper.model.trace;
 
 import com.amazon.dataprepper.model.event.Event;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -58,18 +59,18 @@ public interface Span extends Event {
     String getKind();
 
     /**
-     * Gets ISO8601 representation of the start time.
+     * Gets Instant representation of the start time.
      * @return the start time
      * @since 1.2
      */
-    String getStartTime();
+    Instant getStartTime();
 
     /**
-     * Gets ISO8601 representation of the end time.
+     * Gets Instant representation of the end time.
      * @return the end time
      * @since 1.2
      */
-    String getEndTime();
+    Instant getEndTime();
 
     /**
      * Gets a collection of key-value pairs related to the span.

@@ -68,12 +68,11 @@ public class OTelProtoCodec {
     public static final Function<String, String> SPAN_ATTRIBUTES_REPLACE_DOT_WITH_AT = i -> SPAN_ATTRIBUTES + DOT + i.replace(DOT, AT);
     public static final Function<String, String> RESOURCE_ATTRIBUTES_REPLACE_DOT_WITH_AT = i -> RESOURCE_ATTRIBUTES + DOT + i.replace(DOT, AT);
 
-    public static String convertUnixNanosToISO8601(final long unixNano) {
-        return Instant.ofEpochSecond(0L, unixNano).toString();
+    public static Instant convertUnixNanosToInstant(final long unixNano) {
+        return Instant.ofEpochSecond(0L, unixNano);
     }
 
-    public static long timeISO8601ToNanos(final String timeISO08601) {
-        final Instant instant = Instant.parse(timeISO08601);
+    public static long instantToNanos(final Instant instant) {
         return instant.getEpochSecond() * NANO_MULTIPLIER + instant.getNano();
     }
 
@@ -107,8 +106,8 @@ public class OTelProtoCodec {
                     .withName(sp.getName())
                     .withServiceName(serviceName)
                     .withKind(sp.getKind().name())
-                    .withStartTime(getStartTimeISO8601(sp))
-                    .withEndTime(getEndTimeISO8601(sp))
+                    .withStartTime(getStartTime(sp))
+                    .withEndTime(getEndTime(sp))
                     .withAttributes(mergeAllAttributes(
                             Arrays.asList(
                                     getSpanAttributes(sp),
@@ -172,7 +171,7 @@ public class OTelProtoCodec {
 
         protected SpanEvent getSpanEvent(final io.opentelemetry.proto.trace.v1.Span.Event event) {
             return DefaultSpanEvent.builder()
-                    .withTime(getTimeISO8601(event))
+                    .withTime(getEventTime(event))
                     .withName(event.getName())
                     .withAttributes(getEventAttributes(event))
                     .withDroppedAttributesCount(event.getDroppedAttributesCount())
@@ -224,7 +223,7 @@ public class OTelProtoCodec {
          * if (span.getParentSpanId().isEmpty()) {
          *     traceGroupFieldsBuilder
          *             .withDurationInNanos(span.getEndTimeUnixNano() - span.getStartTimeUnixNano())
-         *             .withEndTime(getEndTimeISO8601(span))
+         *             .withEndTime(getEndTime(span))
          *             .withStatusCode(span.getStatus().getCodeValue());
          * }
          * <p>
@@ -235,7 +234,7 @@ public class OTelProtoCodec {
             if (span.getParentSpanId().isEmpty()) {
                 traceGroupFieldsBuilder = traceGroupFieldsBuilder
                         .withDurationInNanos(span.getEndTimeUnixNano() - span.getStartTimeUnixNano())
-                        .withEndTime(getEndTimeISO8601(span))
+                        .withEndTime(getEndTime(span))
                         .withStatusCode(span.getStatus().getCodeValue());
             }
             return traceGroupFieldsBuilder.build();
@@ -261,16 +260,16 @@ public class OTelProtoCodec {
             return statusAttr;
         }
 
-        protected String getStartTimeISO8601(final io.opentelemetry.proto.trace.v1.Span span) {
-            return convertUnixNanosToISO8601(span.getStartTimeUnixNano());
+        protected Instant getStartTime(final io.opentelemetry.proto.trace.v1.Span span) {
+            return convertUnixNanosToInstant(span.getStartTimeUnixNano());
         }
 
-        protected String getEndTimeISO8601(final io.opentelemetry.proto.trace.v1.Span span) {
-            return convertUnixNanosToISO8601(span.getEndTimeUnixNano());
+        protected Instant getEndTime(final io.opentelemetry.proto.trace.v1.Span span) {
+            return convertUnixNanosToInstant(span.getEndTimeUnixNano());
         }
 
-        protected String getTimeISO8601(final io.opentelemetry.proto.trace.v1.Span.Event event) {
-            return convertUnixNanosToISO8601(event.getTimeUnixNano());
+        protected Instant getEventTime(final io.opentelemetry.proto.trace.v1.Span.Event event) {
+            return convertUnixNanosToInstant(event.getTimeUnixNano());
         }
 
         protected Optional<String> getServiceName(final Resource resource) {
@@ -376,7 +375,7 @@ public class OTelProtoCodec {
         protected io.opentelemetry.proto.trace.v1.Span.Event convertSpanEvent(final SpanEvent spanEvent) throws UnsupportedEncodingException {
             final io.opentelemetry.proto.trace.v1.Span.Event.Builder builder = io.opentelemetry.proto.trace.v1.Span.Event.newBuilder();
             builder.setName(spanEvent.getName());
-            builder.setTimeUnixNano(timeISO8601ToNanos(spanEvent.getTime()));
+            builder.setTimeUnixNano(instantToNanos(spanEvent.getTime()));
             builder.setDroppedAttributesCount(spanEvent.getDroppedAttributesCount());
             final List<KeyValue> attributeKeyValueList = new ArrayList<>();
             for (Map.Entry<String, Object> entry : spanEvent.getAttributes().entrySet()) {
@@ -419,8 +418,8 @@ public class OTelProtoCodec {
                     .setTraceState(span.getTraceState())
                     .setName(span.getName())
                     .setKind(io.opentelemetry.proto.trace.v1.Span.SpanKind.valueOf(span.getKind()))
-                    .setStartTimeUnixNano(timeISO8601ToNanos(span.getStartTime()))
-                    .setEndTimeUnixNano(timeISO8601ToNanos(span.getEndTime()))
+                    .setStartTimeUnixNano(instantToNanos(span.getStartTime()))
+                    .setEndTimeUnixNano(instantToNanos(span.getEndTime()))
                     .setDroppedAttributesCount(span.getDroppedAttributesCount())
                     .setDroppedEventsCount(span.getDroppedEventsCount())
                     .setDroppedLinksCount(span.getDroppedLinksCount());

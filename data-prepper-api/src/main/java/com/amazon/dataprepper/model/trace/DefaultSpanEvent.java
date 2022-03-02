@@ -5,6 +5,7 @@
 
 package com.amazon.dataprepper.model.trace;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class DefaultSpanEvent implements SpanEvent {
 
     private String name;
-    private String time;
+    private Instant time;
     private Map<String, Object> attributes;
     private Integer droppedAttributesCount;
 
@@ -32,7 +33,6 @@ public class DefaultSpanEvent implements SpanEvent {
         this.name = builder.name;
 
         checkNotNull(builder.time, "time cannot be null");
-        checkArgument(!builder.time.isEmpty(), "time cannot be an empty string");
         this.time = builder.time;
 
         this.attributes = builder.attributes == null ? new HashMap<>() : builder.attributes;
@@ -45,7 +45,7 @@ public class DefaultSpanEvent implements SpanEvent {
     }
 
     @Override
-    public String getTime() {
+    public Instant getTime() {
         return time;
     }
 
@@ -79,7 +79,7 @@ public class DefaultSpanEvent implements SpanEvent {
      */
     public static class Builder {
         private String name;
-        private String time;
+        private Instant time;
         private Map<String, Object> attributes;
         private Integer droppedAttributesCount;
 
@@ -98,7 +98,7 @@ public class DefaultSpanEvent implements SpanEvent {
          * @param time
          * @since 1.2
          */
-        public Builder withTime(final String time) {
+        public Builder withTime(final Instant time) {
             this.time = time;
             return this;
         }

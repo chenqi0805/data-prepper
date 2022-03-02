@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -37,8 +38,8 @@ public class JacksonSpanTest {
     private static final String TEST_PARENT_SPAN_ID =  UUID.randomUUID().toString();
     private static final String TEST_NAME =  UUID.randomUUID().toString();
     private static final String TEST_KIND =  UUID.randomUUID().toString();
-    private static final String TEST_START_TIME =  UUID.randomUUID().toString();
-    private static final String TEST_END_TIME =  UUID.randomUUID().toString();
+    private static final Instant TEST_START_TIME = Instant.now();
+    private static final Instant TEST_END_TIME = Instant.now();
     private static final Map<String, Object> TEST_ATTRIBUTES = ImmutableMap.of("key1", new Date().getTime(), "key2", UUID.randomUUID().toString());
     private static final Integer TEST_DROPPED_ATTRIBUTES_COUNT = 8;
     private static final Integer TEST_DROPPED_EVENTS_COUNT =  45;
@@ -64,7 +65,7 @@ public class JacksonSpanTest {
         // object mapper in the JacksonEvent class to correctly serialize this objects.
         defaultSpanEvent = DefaultSpanEvent.builder()
                 .withName(UUID.randomUUID().toString())
-                .withTime(UUID.randomUUID().toString())
+                .withTime(Instant.now())
                 .build();
 
         defaultLink = DefaultLink.builder()
@@ -76,7 +77,7 @@ public class JacksonSpanTest {
         defaultTraceGroupFields = DefaultTraceGroupFields.builder()
                 .withDurationInNanos(123L)
                 .withStatusCode(201)
-                .withEndTime("the End")
+                .withEndTime(TEST_END_TIME)
                 .build();
         
         builder = JacksonSpan.builder()
@@ -146,13 +147,13 @@ public class JacksonSpanTest {
 
     @Test
     public void testGetStartTime() {
-        final String GetStartTime = jacksonSpan.getStartTime();
+        final Instant GetStartTime = jacksonSpan.getStartTime();
         assertThat(GetStartTime, is(equalTo(TEST_START_TIME)));
     }
 
     @Test
     public void testGetEndTime() {
-        final String endTime = jacksonSpan.getEndTime();
+        final Instant endTime = jacksonSpan.getEndTime();
         assertThat(endTime, is(equalTo(TEST_END_TIME)));
     }
 
@@ -229,7 +230,7 @@ public class JacksonSpanTest {
         final TraceGroupFields testTraceGroupFields = DefaultTraceGroupFields.builder()
                 .withDurationInNanos(200L)
                 .withStatusCode(404)
-                .withEndTime("Different end time")
+                .withEndTime(TEST_END_TIME.plusMillis(1000))
                 .build();
         jacksonSpan.setTraceGroupFields(testTraceGroupFields);
         final TraceGroupFields traceGroupFields = jacksonSpan.getTraceGroupFields();
@@ -391,21 +392,9 @@ public class JacksonSpanTest {
     }
 
     @Test
-    public void testBuilder_withEmptyStartTime_throwsIllegalArgumentException() {
-        builder.withStartTime("");
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
     public void testBuilder_withoutEndTime_throwsNullPointerException() {
         builder.withEndTime(null);
         assertThrows(NullPointerException.class, builder::build);
-    }
-
-    @Test
-    public void testBuilder_withEmptyEndTime_throwsIllegalArgumentException() {
-        builder.withEndTime("");
-        assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test

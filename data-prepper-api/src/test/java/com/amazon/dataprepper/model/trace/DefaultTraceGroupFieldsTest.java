@@ -9,7 +9,7 @@ import com.amazon.dataprepper.model.event.TestObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.UUID;
+import java.time.Instant;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class DefaultTraceGroupFieldsTest {
 
-    private static final String TEST_END_TIME = UUID.randomUUID().toString();
+    private static final Instant TEST_END_TIME = Instant.now();
     private static final Long TEST_DURATION = 123L;
     private static final Integer TEST_STATUS_CODE = 200;
 
@@ -50,7 +50,7 @@ public class DefaultTraceGroupFieldsTest {
 
     @Test
     public void testGetEndTime() {
-        final String endTime = defaultTraceGroupFields.getEndTime();
+        final Instant endTime = defaultTraceGroupFields.getEndTime();
 
         assertThat(endTime, is(TEST_END_TIME));
     }
@@ -85,7 +85,7 @@ public class DefaultTraceGroupFieldsTest {
         final DefaultTraceGroupFields traceGroupFields = DefaultTraceGroupFields.builder()
                 .withDurationInNanos(TEST_DURATION)
                 .withStatusCode(TEST_STATUS_CODE)
-                .withEndTime("Different from TEST_END_TIME")
+                .withEndTime(Instant.now().plusMillis(1000))
                 .build();
         assertThat(defaultTraceGroupFields, is(not(equalTo(traceGroupFields))));
     }

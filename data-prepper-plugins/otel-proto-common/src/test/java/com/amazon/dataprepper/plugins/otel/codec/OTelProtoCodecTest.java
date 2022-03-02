@@ -125,7 +125,7 @@ public class OTelProtoCodecTest {
         public void testGetSpanEvent() {
             final String testName = "test name";
             final long testTimeNanos = System.nanoTime();
-            final String testTime = OTelProtoCodec.convertUnixNanosToISO8601(testTimeNanos);
+            final Instant testTime = OTelProtoCodec.convertUnixNanosToInstant(testTimeNanos);
             final String testKey = "test key";
             final String testValue = "test value";
             io.opentelemetry.proto.trace.v1.Span.Event testOTelProtoSpanEvent = io.opentelemetry.proto.trace.v1.Span.Event.newBuilder()
@@ -301,7 +301,7 @@ public class OTelProtoCodecTest {
         }
 
         @Test
-        public void testISO8601() {
+        public void testGetTime() {
             final long NANO_MULTIPLIER = 1_000 * 1_000 * 1_000;
             final io.opentelemetry.proto.trace.v1.Span startTimeUnixNano = io.opentelemetry.proto.trace.v1.Span.newBuilder()
                     .setStartTimeUnixNano(651242400000000321L).build();
@@ -309,12 +309,12 @@ public class OTelProtoCodecTest {
                     .setEndTimeUnixNano(1598013600000000321L).build();
             final io.opentelemetry.proto.trace.v1.Span emptyTimeSpan = io.opentelemetry.proto.trace.v1.Span.newBuilder().build();
 
-            final String startTime = decoderUnderTest.getStartTimeISO8601(startTimeUnixNano);
-            assertThat(Instant.parse(startTime).getEpochSecond() * NANO_MULTIPLIER + Instant.parse(startTime).getNano(), equalTo(startTimeUnixNano.getStartTimeUnixNano()));
-            final String endTime = decoderUnderTest.getEndTimeISO8601(endTimeUnixNano);
-            assertThat(Instant.parse(endTime).getEpochSecond() * NANO_MULTIPLIER + Instant.parse(endTime).getNano(), equalTo(endTimeUnixNano.getEndTimeUnixNano()));
-            final String emptyTime = decoderUnderTest.getStartTimeISO8601(endTimeUnixNano);
-            assertThat(Instant.parse(emptyTime).getEpochSecond() * NANO_MULTIPLIER + Instant.parse(emptyTime).getNano(), equalTo(emptyTimeSpan.getStartTimeUnixNano()));
+            final Instant startTime = decoderUnderTest.getStartTime(startTimeUnixNano);
+            assertThat(startTime.getEpochSecond() * NANO_MULTIPLIER + startTime.getNano(), equalTo(startTimeUnixNano.getStartTimeUnixNano()));
+            final Instant endTime = decoderUnderTest.getEndTime(endTimeUnixNano);
+            assertThat(endTime.getEpochSecond() * NANO_MULTIPLIER + endTime.getNano(), equalTo(endTimeUnixNano.getEndTimeUnixNano()));
+            final Instant emptyTime = decoderUnderTest.getStartTime(endTimeUnixNano);
+            assertThat(emptyTime.getEpochSecond() * NANO_MULTIPLIER + emptyTime.getNano(), equalTo(emptyTimeSpan.getStartTimeUnixNano()));
 
         }
 
@@ -347,7 +347,7 @@ public class OTelProtoCodecTest {
                     .build();
             final TraceGroupFields expectedTraceGroupFields = DefaultTraceGroupFields.builder()
                     .withStatusCode(testStatusCode)
-                    .withEndTime(decoderUnderTest.getEndTimeISO8601(span2))
+                    .withEndTime(decoderUnderTest.getEndTime(span2))
                     .withDurationInNanos(testEndTimeUnixNano - testStartTimeUnixNano)
                     .build();
             assertThat(decoderUnderTest.getTraceGroupFields(span2), equalTo(expectedTraceGroupFields));
@@ -549,7 +549,7 @@ public class OTelProtoCodecTest {
         public void testEncodeSpanEvent() throws UnsupportedEncodingException {
             final String testName = "test name";
             final long testTimeNanos = System.nanoTime();
-            final String testTime = OTelProtoCodec.convertUnixNanosToISO8601(testTimeNanos);
+            final Instant testTime = OTelProtoCodec.convertUnixNanosToInstant(testTimeNanos);
             final String testKey = "test key";
             final String testValue = "test value";
             final SpanEvent testSpanEvent = DefaultSpanEvent.builder()
@@ -625,8 +625,8 @@ public class OTelProtoCodecTest {
                 final String name = (String) spanMap.get("name");
                 final String kind = (String) spanMap.get("kind");
                 final Long durationInNanos = ((Number) spanMap.get("durationInNanos")).longValue();
-                final String startTime = (String) spanMap.get("startTime");
-                final String endTime = (String) spanMap.get("endTime");
+                final Instant startTime = Instant.parse((String) spanMap.get("startTime"));
+                final Instant endTime = Instant.parse((String) spanMap.get("endTime"));
                 spanBuilder = spanBuilder
                         .withTraceId(traceId)
                         .withSpanId(spanId)
@@ -661,11 +661,11 @@ public class OTelProtoCodecTest {
     @Test
     public void testTimeCodec() {
         final long testNanos = System.nanoTime();
-        final String timeISO8601 = OTelProtoCodec.convertUnixNanosToISO8601(testNanos);
-        final long nanoCodecResult = OTelProtoCodec.timeISO8601ToNanos(OTelProtoCodec.convertUnixNanosToISO8601(testNanos));
+        final Instant time = OTelProtoCodec.convertUnixNanosToInstant(testNanos);
+        final long nanoCodecResult = OTelProtoCodec.instantToNanos(OTelProtoCodec.convertUnixNanosToInstant(testNanos));
         assertThat(nanoCodecResult, equalTo(testNanos));
-        final String stringCodecResult = OTelProtoCodec.convertUnixNanosToISO8601(OTelProtoCodec.timeISO8601ToNanos(timeISO8601));
-        assertThat(stringCodecResult, equalTo(timeISO8601));
+        final Instant instantCodecResult = OTelProtoCodec.convertUnixNanosToInstant(OTelProtoCodec.instantToNanos(time));
+        assertThat(instantCodecResult, equalTo(time));
     }
 
     @Test

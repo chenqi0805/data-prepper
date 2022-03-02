@@ -40,6 +40,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,14 +48,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static com.amazon.dataprepper.plugins.otel.codec.OTelProtoCodec.convertUnixNanosToISO8601;
+import static com.amazon.dataprepper.plugins.otel.codec.OTelProtoCodec.convertUnixNanosToInstant;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -127,7 +127,7 @@ public class PeerForwarderTest {
                                final String serviceName, final String spanName, final io.opentelemetry.proto.trace.v1.Span.SpanKind spanKind) {
         final long startTimeNanos = System.nanoTime();
         final long endTimeNanos = System.nanoTime();
-        final String endTime = UUID.randomUUID().toString();
+        final Instant endTime = Instant.now();
         JacksonSpan.Builder builder = JacksonSpan.builder()
                 .withSpanId(spanId)
                 .withTraceId(traceId)
@@ -136,8 +136,8 @@ public class PeerForwarderTest {
                 .withName(spanName)
                 .withServiceName(serviceName)
                 .withKind(spanKind.name())
-                .withStartTime(convertUnixNanosToISO8601(startTimeNanos))
-                .withEndTime(convertUnixNanosToISO8601(endTimeNanos))
+                .withStartTime(convertUnixNanosToInstant(startTimeNanos))
+                .withEndTime(convertUnixNanosToInstant(endTimeNanos))
                 .withTraceGroup(parentId.isEmpty()? null : spanName)
                 .withDurationInNanos(endTimeNanos - startTimeNanos);
         if (parentId.isEmpty()) {

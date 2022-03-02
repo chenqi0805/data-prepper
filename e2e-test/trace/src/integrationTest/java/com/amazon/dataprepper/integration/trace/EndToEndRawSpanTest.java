@@ -175,8 +175,7 @@ public class EndToEndRawSpanTest {
                 // Extract and replace traceGroupFields with searchHit fields to unify the representation
                 source.entrySet().removeIf(entry -> entry.getKey().startsWith("traceGroupFields"));
                 final Number statusCode = hit.field(TraceGroup.TRACE_GROUP_STATUS_CODE_FIELD).getValue();
-                // Restore trailing zeros for thousand, e.g. 2020-08-20T05:40:46.0895568Z -> 2020-08-20T05:40:46.089556800Z
-                final String endTime = Instant.parse(hit.field(TraceGroup.TRACE_GROUP_END_TIME_FIELD).getValue()).toString();
+                final Instant endTime = Instant.parse(hit.field(TraceGroup.TRACE_GROUP_END_TIME_FIELD).getValue());
                 final Number durationInNanos = hit.field(TraceGroup.TRACE_GROUP_DURATION_IN_NANOS_FIELD).getValue();
                 source.put(TraceGroup.TRACE_GROUP_STATUS_CODE_FIELD, statusCode.intValue());
                 source.put(TraceGroup.TRACE_GROUP_END_TIME_FIELD, endTime);
@@ -188,7 +187,7 @@ public class EndToEndRawSpanTest {
     }
 
     public static ResourceSpans getResourceSpans(final String serviceName, final String spanName, final byte[]
-            spanId, final byte[] parentId, final byte[] traceId, final Span.SpanKind spanKind, final String endTime,
+            spanId, final byte[] parentId, final byte[] traceId, final Span.SpanKind spanKind, final Instant endTime,
                                                  final Long durationInNanos, final Integer statusCode) {
         final ByteString parentSpanId = parentId != null ? ByteString.copyFrom(parentId) : ByteString.EMPTY;
         final long endTimeInNanos = convertTimeStampToNanos(endTime);
@@ -227,9 +226,8 @@ public class EndToEndRawSpanTest {
                 .build();
     }
 
-    private static long convertTimeStampToNanos(String timestamp) {
-        Instant instant = Instant.parse(timestamp);
-        return ChronoUnit.NANOS.between(Instant.EPOCH, instant);
+    private static long convertTimeStampToNanos(Instant timestamp) {
+        return ChronoUnit.NANOS.between(Instant.EPOCH, timestamp);
     }
 
     private List<ResourceSpans> getResourceSpansBatch(final List<EndToEndTestSpan> testSpanList) {
@@ -241,7 +239,7 @@ public class EndToEndRawSpanTest {
             final String serviceName = testSpan.serviceName;
             final String spanName = testSpan.name;
             final Span.SpanKind spanKind = testSpan.spanKind;
-            final String endTime = testSpan.endTime;
+            final Instant endTime = testSpan.endTime;
             final Long durationInNanos = testSpan.durationInNanos;
             final Integer statusCode = testSpan.statusCode;
             final ResourceSpans rs = getResourceSpans(

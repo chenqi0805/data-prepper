@@ -10,6 +10,7 @@ import com.amazon.dataprepper.model.event.JacksonEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -49,8 +50,9 @@ public class JacksonSpan extends JacksonEvent implements Span {
 
     private static final List<String> REQUIRED_KEYS = Arrays.asList(TRACE_GROUP_KEY);
     private static final List<String>
-            REQUIRED_NON_EMPTY_KEYS = Arrays.asList(TRACE_ID_KEY, SPAN_ID_KEY, NAME_KEY, KIND_KEY, START_TIME_KEY, END_TIME_KEY);
-    private static final List<String> REQUIRED_NON_NULL_KEYS = Arrays.asList(DURATION_IN_NANOS_KEY, TRACE_GROUP_FIELDS_KEY);
+            REQUIRED_NON_EMPTY_KEYS = Arrays.asList(TRACE_ID_KEY, SPAN_ID_KEY, NAME_KEY, KIND_KEY);
+    private static final List<String> REQUIRED_NON_NULL_KEYS =
+            Arrays.asList(DURATION_IN_NANOS_KEY, TRACE_GROUP_FIELDS_KEY, START_TIME_KEY, END_TIME_KEY);
 
     protected JacksonSpan(final Builder builder) {
         super(builder);
@@ -89,13 +91,13 @@ public class JacksonSpan extends JacksonEvent implements Span {
     }
 
     @Override
-    public String getStartTime() {
-        return this.get(START_TIME_KEY, String.class);
+    public Instant getStartTime() {
+        return this.get(START_TIME_KEY, Instant.class);
     }
 
     @Override
-    public String getEndTime() {
-        return this.get(END_TIME_KEY, String.class);
+    public Instant getEndTime() {
+        return this.get(END_TIME_KEY, Instant.class);
     }
 
     @Override
@@ -261,7 +263,7 @@ public class JacksonSpan extends JacksonEvent implements Span {
          * @param startTime
          * @since 1.2
          */
-        public Builder withStartTime(final String startTime) {
+        public Builder withStartTime(final Instant startTime) {
             data.put(START_TIME_KEY, startTime);
             return this;
         }
@@ -271,7 +273,7 @@ public class JacksonSpan extends JacksonEvent implements Span {
          * @param endTime
          * @since 1.2
          */
-        public Builder withEndTime(final String endTime) {
+        public Builder withEndTime(final Instant endTime) {
             data.put(END_TIME_KEY, endTime);
             return this;
         }

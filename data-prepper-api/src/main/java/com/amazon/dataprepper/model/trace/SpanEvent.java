@@ -5,6 +5,7 @@
 
 package com.amazon.dataprepper.model.trace;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -25,7 +26,7 @@ public interface SpanEvent {
      * @return the time
      * @since 1.2
      */
-    String getTime();
+    Instant getTime();
 
     /**
      * Gets a map of user-supplied attributes.

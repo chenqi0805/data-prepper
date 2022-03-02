@@ -176,7 +176,7 @@ public class OTelTraceGroupPrepper extends AbstractPrepper<Record<Span>, Record<
             final String traceId = traceIdDocField.getValue();
             final String traceGroupName = traceGroupNameDocField.getValue();
             // Restore trailing zeros for thousand, e.g. 2020-08-20T05:40:46.0895568Z -> 2020-08-20T05:40:46.089556800Z
-            final String traceGroupEndTime = Instant.parse(traceGroupEndTimeDocField.getValue()).toString();
+            final Instant traceGroupEndTime = Instant.parse(traceGroupEndTimeDocField.getValue());
             final Number traceGroupDurationInNanos = traceGroupDurationInNanosDocField.getValue();
             final Number traceGroupStatusCode = traceGroupStatusCodeDocField.getValue();
             final TraceGroupFields traceGroupFields = DefaultTraceGroupFields.builder()

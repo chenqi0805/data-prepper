@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class DefaultSpanEventTest {
 
     private static final String TEST_NAME = UUID.randomUUID().toString();
-    private static final String TEST_TIME = UUID.randomUUID().toString();
+    private static final Instant TEST_TIME = Instant.now();
     private static final Map<String, Object> TEST_ATTRIBUTES = ImmutableMap.of("key1", UUID.randomUUID(), "key2", UUID.randomUUID().toString());
     private static final Integer TEST_DROPPED_ATTRIBUTE_COUNT = 3;
 
@@ -52,7 +53,7 @@ public class DefaultSpanEventTest {
 
     @Test
     public void testGetTime() {
-        final String time = defaultSpanEvent.getTime();
+        final Instant time = defaultSpanEvent.getTime();
         assertThat(time, is(equalTo(TEST_TIME)));
     }
 
@@ -77,7 +78,7 @@ public class DefaultSpanEventTest {
     @Test
     public void testEquals_withDifferentTime() {
         final DefaultSpanEvent spanEvent = builder
-                .withTime(UUID.randomUUID().toString())
+                .withTime(Instant.now().plusMillis(1000))
                 .build();
         assertThat(defaultSpanEvent, is(not(equalTo(spanEvent))));
     }
@@ -150,12 +151,6 @@ public class DefaultSpanEventTest {
     public void testBuilder_withMissingTime_throwsNullPointerException() {
         builder.withTime(null);
         assertThrows(NullPointerException.class, builder::build);
-    }
-
-    @Test
-    public void testBuilder_withEmptyTime_throwsIllegalArgumentException() {
-        builder.withTime("");
-        assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test

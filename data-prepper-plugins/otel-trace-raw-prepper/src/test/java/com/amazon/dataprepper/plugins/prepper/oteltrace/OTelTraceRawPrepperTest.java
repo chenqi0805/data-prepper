@@ -31,6 +31,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -218,8 +219,8 @@ public class OTelTraceRawPrepperTest {
             final String name = (String) spanMap.get("name");
             final String kind = (String) spanMap.get("kind");
             final Long durationInNanos = ((Number) spanMap.get("durationInNanos")).longValue();
-            final String startTime = (String) spanMap.get("startTime");
-            final String endTime = (String) spanMap.get("endTime");
+            final Instant startTime = Instant.parse((String) spanMap.get("startTime"));
+            final Instant endTime = Instant.parse((String) spanMap.get("endTime"));
             spanBuilder = spanBuilder
                     .withTraceId(traceId)
                     .withSpanId(spanId)

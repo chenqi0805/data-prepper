@@ -42,6 +42,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,7 +76,7 @@ public class OTelTraceGroupPrepperTests {
     private static final TraceGroup TEST_TRACE_GROUP_1 = new TraceGroup.TraceGroupBuilder()
             .setTraceGroup("/test_trace_group_1")
             .setTraceGroupFields(DefaultTraceGroupFields.builder()
-                    .withEndTime("2020-08-19T05:30:46.089556800Z")
+                    .withEndTime(Instant.parse("2020-08-19T05:30:46.089556800Z"))
                     .withStatusCode(1)
                     .withDurationInNanos(48545100L)
             .build())
@@ -84,7 +85,7 @@ public class OTelTraceGroupPrepperTests {
     private static final TraceGroup TEST_TRACE_GROUP_2 = new TraceGroup.TraceGroupBuilder()
             .setTraceGroup("/test_trace_group_2")
             .setTraceGroupFields(DefaultTraceGroupFields.builder()
-                    .withEndTime("2020-08-20T05:30:46.089556800Z")
+                    .withEndTime(Instant.parse("2020-08-20T05:30:46.089556800Z"))
                     .withStatusCode(0)
                     .withDurationInNanos(48545300L)
                     .build())
@@ -134,7 +135,7 @@ public class OTelTraceGroupPrepperTests {
                 .thenReturn(new DocumentField(TraceGroup.TRACE_GROUP_NAME_FIELD, Collections.singletonList(TEST_TRACE_GROUP_1.getTraceGroup())));
         when(testSearchHit1.field(TraceGroup.TRACE_GROUP_END_TIME_FIELD))
                 .thenReturn(new DocumentField(
-                        TraceGroup.TRACE_GROUP_END_TIME_FIELD, Collections.singletonList(TEST_TRACE_GROUP_1.getTraceGroupFields().getEndTime())));
+                        TraceGroup.TRACE_GROUP_END_TIME_FIELD, Collections.singletonList(TEST_TRACE_GROUP_1.getTraceGroupFields().getEndTime().toString())));
         when(testSearchHit1.field(TraceGroup.TRACE_GROUP_DURATION_IN_NANOS_FIELD))
                 .thenReturn(new DocumentField(
                         TraceGroup.TRACE_GROUP_DURATION_IN_NANOS_FIELD, Collections.singletonList(TEST_TRACE_GROUP_1.getTraceGroupFields().getDurationInNanos())));
@@ -302,8 +303,8 @@ public class OTelTraceGroupPrepperTests {
             final String name = (String) spanMap.get("name");
             final String kind = (String) spanMap.get("kind");
             final Long durationInNanos = ((Number) spanMap.get("durationInNanos")).longValue();
-            final String startTime = (String) spanMap.get("startTime");
-            final String endTime = (String) spanMap.get("endTime");
+            final Instant startTime = Instant.parse((String) spanMap.get("startTime"));
+            final Instant endTime = Instant.parse((String) spanMap.get("endTime"));
             final String traceGroup = (String) spanMap.get(TraceGroup.TRACE_GROUP_NAME_FIELD);
             spanBuilder = spanBuilder
                     .withTraceId(traceId)
@@ -319,7 +320,7 @@ public class OTelTraceGroupPrepperTests {
             DefaultTraceGroupFields.Builder traceGroupFieldsBuilder = DefaultTraceGroupFields.builder();
             if (traceGroup != null) {
                 final Integer traceGroupFieldsStatusCode = ((Number) spanMap.get(TraceGroup.TRACE_GROUP_STATUS_CODE_FIELD)).intValue();
-                final String traceGroupFieldsEndTime = (String) spanMap.get(TraceGroup.TRACE_GROUP_END_TIME_FIELD);
+                final Instant traceGroupFieldsEndTime = Instant.parse((String) spanMap.get(TraceGroup.TRACE_GROUP_END_TIME_FIELD));
                 final Long traceGroupFieldsDurationInNanos = ((Number) spanMap.get(TraceGroup.TRACE_GROUP_DURATION_IN_NANOS_FIELD)).longValue();
                 traceGroupFieldsBuilder = traceGroupFieldsBuilder
                         .withStatusCode(traceGroupFieldsStatusCode)

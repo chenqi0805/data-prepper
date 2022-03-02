@@ -5,6 +5,8 @@
 
 package com.amazon.dataprepper.model.trace;
 
+import java.time.Instant;
+
 /**
  * The default implementation of {@link TraceGroupFields}, the attributes associated with an entire trace.
  *
@@ -12,7 +14,7 @@ package com.amazon.dataprepper.model.trace;
  */
 public class DefaultTraceGroupFields implements TraceGroupFields {
 
-    private String endTime;
+    private Instant endTime;
     private Long durationInNanos;
     private Integer statusCode;
 
@@ -27,7 +29,7 @@ public class DefaultTraceGroupFields implements TraceGroupFields {
     }
 
     @Override
-    public String getEndTime() {
+    public Instant getEndTime() {
         return endTime;
     }
 
@@ -60,11 +62,11 @@ public class DefaultTraceGroupFields implements TraceGroupFields {
      */
     public static class Builder {
 
-        private String endTime;
+        private Instant endTime;
         private Long durationInNanos;
         private Integer statusCode;
 
-        public Builder withEndTime(final String endTime) {
+        public Builder withEndTime(final Instant endTime) {
             this.endTime = endTime;
             return this;
         }

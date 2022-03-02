@@ -17,10 +17,11 @@ import com.amazon.dataprepper.model.trace.JacksonSpan;
 import com.amazon.dataprepper.model.trace.Span;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Random;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -63,7 +64,7 @@ public class ServiceMapTestUtils {
      */
     public static Span getSpan(final String serviceName, final String spanName, final String
             spanId, final String parentId, final String traceId, final io.opentelemetry.proto.trace.v1.Span.SpanKind spanKind) {
-        final String endTime = UUID.randomUUID().toString();
+        final Instant endTime = Instant.now();
         final JacksonSpan.Builder builder = JacksonSpan.builder()
                 .withSpanId(spanId)
                 .withTraceId(traceId)
@@ -72,7 +73,7 @@ public class ServiceMapTestUtils {
                 .withName(spanName)
                 .withServiceName(serviceName)
                 .withKind(spanKind.name())
-                .withStartTime(UUID.randomUUID().toString())
+                .withStartTime(Instant.now())
                 .withEndTime(endTime)
                 .withTraceGroup(parentId.isEmpty()? null : spanName)
                 .withDurationInNanos(500L);

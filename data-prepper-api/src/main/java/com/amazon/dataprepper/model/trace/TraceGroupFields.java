@@ -5,6 +5,8 @@
 
 package com.amazon.dataprepper.model.trace;
 
+import java.time.Instant;
+
 /**
  * Represents the attributes associated with an entire trace.
  * @since 1.2
@@ -16,7 +18,7 @@ public interface TraceGroupFields {
      * @return the end time
      * @since 1.2
      */
-    String getEndTime();
+    Instant getEndTime();
 
     /**
      * Gets the duration of the entire trace in nanoseconds
