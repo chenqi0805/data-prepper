@@ -10,6 +10,7 @@ import org.opensearch.dataprepper.model.record.Record;
 import org.opensearch.dataprepper.model.event.Event;
 import org.opensearch.dataprepper.metrics.PluginMetrics;
 import org.opensearch.dataprepper.model.configuration.PipelineDescription;
+import org.opensearch.dataprepper.plugins.kafka.configuration.EncryptionConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.KafkaSourceConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConfig;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.time.Duration;
 
@@ -42,7 +44,7 @@ class KafkaSourceTest {
     private KafkaSourceConfig sourceConfig;
 
     @Mock
-    private KafkaSourceConfig.EncryptionConfig encryptionConfig;
+    private EncryptionConfig encryptionConfig;
 
     @Mock
     private PluginMetrics pluginMetrics;
@@ -71,7 +73,7 @@ class KafkaSourceTest {
     @BeforeEach
     void setUp() throws Exception {
         sourceConfig = mock(KafkaSourceConfig.class);
-        encryptionConfig = mock(KafkaSourceConfig.EncryptionConfig.class);
+        encryptionConfig = mock(EncryptionConfig.class);
         pipelineDescription = mock(PipelineDescription.class);
         pluginMetrics = mock(PluginMetrics.class);
         acknowledgementSetManager = mock(AcknowledgementSetManager.class);
@@ -97,7 +99,7 @@ class KafkaSourceTest {
         when(topic2.getAutoCommit()).thenReturn(false);
         when(topic1.getThreadWaitingTime()).thenReturn(Duration.ofSeconds(10));
         when(topic2.getThreadWaitingTime()).thenReturn(Duration.ofSeconds(10));
-        when(sourceConfig.getBootStrapServers()).thenReturn("http://localhost:1234");
+        when(sourceConfig.getBootStrapServers()).thenReturn(Collections.singletonList("http://localhost:1234"));
         when(sourceConfig.getTopics()).thenReturn(Arrays.asList(topic1, topic2));
         when(sourceConfig.getSchemaConfig()).thenReturn(null);
         when(sourceConfig.getEncryptionConfig()).thenReturn(encryptionConfig);

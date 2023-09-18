@@ -40,10 +40,10 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfi
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaRegistryType;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConfig;
-import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaSourceCustomConsumer;
+import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaCustomConsumer;
 import org.opensearch.dataprepper.plugins.kafka.util.ClientDNSLookupType;
 import org.opensearch.dataprepper.plugins.kafka.util.KafkaSourceJsonDeserializer;
-import org.opensearch.dataprepper.plugins.kafka.util.KafkaSourceSecurityConfigurer;
+import org.opensearch.dataprepper.plugins.kafka.util.KafkaConsumerSecurityConfigurer;
 import org.opensearch.dataprepper.plugins.kafka.util.KafkaTopicMetrics;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 import org.slf4j.Logger;
@@ -87,7 +87,7 @@ public class KafkaSource implements Source<Record<Event>> {
     private AtomicBoolean shutdownInProgress;
     private ExecutorService executorService;
     private final PluginMetrics pluginMetrics;
-    private KafkaSourceCustomConsumer consumer;
+    private KafkaCustomConsumer consumer;
     private KafkaConsumer kafkaConsumer;
     private String pipelineName;
     private String consumerGroupID;
@@ -98,7 +98,7 @@ public class KafkaSource implements Source<Record<Event>> {
     private GlueSchemaRegistryKafkaDeserializer glueDeserializer;
     private StringDeserializer stringDeserializer;
     private final List<ExecutorService> allTopicExecutorServices;
-    private final List<KafkaSourceCustomConsumer> allTopicConsumers;
+    private final List<KafkaCustomConsumer> allTopicConsumers;
 
     @DataPrepperPluginConstructor
     public KafkaSource(final KafkaSourceConfig sourceConfig,
@@ -118,7 +118,7 @@ public class KafkaSource implements Source<Record<Event>> {
     @Override
     public void start(Buffer<Record<Event>> buffer) {
         Properties authProperties = new Properties();
-        KafkaSourceSecurityConfigurer.setAuthProperties(authProperties, sourceConfig, LOG);
+        KafkaConsumerSecurityConfigurer.setAuthProperties(authProperties, sourceConfig, LOG);
         sourceConfig.getTopics().forEach(topic -> {
             consumerGroupID = topic.getGroupId();
             KafkaTopicMetrics topicMetrics = new KafkaTopicMetrics(topic.getName(), pluginMetrics);
@@ -139,7 +139,7 @@ public class KafkaSource implements Source<Record<Event>> {
                             break;
                         case PLAINTEXT:
                         default:
-                            glueDeserializer = KafkaSourceSecurityConfigurer.getGlueSerializer(sourceConfig);
+                            glueDeserializer = KafkaConsumerSecurityConfigurer.getGlueSerializer(sourceConfig);
                             if (Objects.nonNull(glueDeserializer)) {
                                 kafkaConsumer = new KafkaConsumer(consumerProperties, stringDeserializer, glueDeserializer);
                             } else {
@@ -147,7 +147,7 @@ public class KafkaSource implements Source<Record<Event>> {
                             }
                             break;
                     }
-                    consumer = new KafkaSourceCustomConsumer(kafkaConsumer, shutdownInProgress, buffer, sourceConfig, topic, schemaType, acknowledgementSetManager, topicMetrics);
+                    consumer = new KafkaCustomConsumer(kafkaConsumer, shutdownInProgress, buffer, sourceConfig, topic, schemaType, acknowledgementSetManager, topicMetrics);
                     allTopicConsumers.add(consumer);
 
                     executorService.submit(consumer);
