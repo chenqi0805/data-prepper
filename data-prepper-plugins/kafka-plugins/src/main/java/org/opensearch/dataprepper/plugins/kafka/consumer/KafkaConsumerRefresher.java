@@ -5,7 +5,7 @@ import org.opensearch.dataprepper.model.plugin.PluginComponentRefresher;
 import org.opensearch.dataprepper.plugins.kafka.configuration.AuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.KafkaSourceConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfig;
-import org.opensearch.dataprepper.plugins.kafka.util.KafkaSourceSecurityConfigurer;
+import org.opensearch.dataprepper.plugins.kafka.util.KafkaSecurityConfigurer;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public class KafkaConsumerRefresher implements PluginComponentRefresher<KafkaCon
         if (plainTextAuthChanged(kafkaSourceConfig)) {
             readWriteLock.writeLock().lock();
             try {
-                KafkaSourceSecurityConfigurer.setAuthProperties(currentConsumerProperties, kafkaSourceConfig, LOG);
+                KafkaSecurityConfigurer.setAuthProperties(currentConsumerProperties, kafkaSourceConfig, LOG);
                 currentConsumer = kafkaConsumerFactory.regenerateKafkaConsumer(
                         kafkaSourceConfig, schema, currentConsumerProperties);
             } finally {

@@ -6,7 +6,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.opensearch.dataprepper.plugins.kafka.configuration.KafkaSourceConfig;
-import org.opensearch.dataprepper.plugins.kafka.util.KafkaSourceSecurityConfigurer;
+import org.opensearch.dataprepper.plugins.kafka.util.KafkaSecurityConfigurer;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 
 import java.util.Objects;
@@ -30,7 +30,7 @@ public class KafkaConsumerFactory {
             case PLAINTEXT:
             default:
                 final GlueSchemaRegistryKafkaDeserializer glueDeserializer =
-                        KafkaSourceSecurityConfigurer.getGlueSerializer(sourceConfig);
+                        KafkaSecurityConfigurer.getGlueSerializer(sourceConfig);
                 if (Objects.nonNull(glueDeserializer)) {
                     return new KafkaConsumer(consumerProperties, stringDeserializer, glueDeserializer);
                 } else {

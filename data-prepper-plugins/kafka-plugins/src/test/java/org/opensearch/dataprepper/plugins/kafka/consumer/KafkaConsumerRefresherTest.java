@@ -7,14 +7,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.opensearch.dataprepper.metrics.PluginMetrics;
 import org.opensearch.dataprepper.plugins.kafka.configuration.AuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.KafkaSourceConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfig;
-import org.opensearch.dataprepper.plugins.kafka.util.KafkaSourceSecurityConfigurer;
+import org.opensearch.dataprepper.plugins.kafka.util.KafkaSecurityConfigurer;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 
-import java.lang.management.ManagementFactory;
 import java.util.Properties;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -23,7 +21,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -133,10 +130,10 @@ class KafkaConsumerRefresherTest {
         final KafkaConsumer newConsumer = mock(KafkaConsumer.class);
         when(kafkaConsumerFactory.regenerateKafkaConsumer(eq(newConfig), eq(schema), eq(consumerProperties)))
                 .thenReturn(newConsumer);
-        try (final MockedStatic<KafkaSourceSecurityConfigurer> kafkaSourceSecurityConfigurerMockedStatic =
-                     mockStatic(KafkaSourceSecurityConfigurer.class)) {
+        try (final MockedStatic<KafkaSecurityConfigurer> kafkaSourceSecurityConfigurerMockedStatic =
+                     mockStatic(KafkaSecurityConfigurer.class)) {
             kafkaSourceSecurityConfigurerMockedStatic.when(() ->
-                    KafkaSourceSecurityConfigurer.setAuthProperties(eq(consumerProperties), eq(newConfig), any())
+                    KafkaSecurityConfigurer.setAuthProperties(eq(consumerProperties), eq(newConfig), any())
             ).thenAnswer(invocation -> null);
             objectUnderTest.update(newConfig);
         }
@@ -162,10 +159,10 @@ class KafkaConsumerRefresherTest {
         final KafkaConsumer newConsumer = mock(KafkaConsumer.class);
         when(kafkaConsumerFactory.regenerateKafkaConsumer(eq(newConfig), eq(schema), eq(consumerProperties)))
                 .thenReturn(newConsumer);
-        try (final MockedStatic<KafkaSourceSecurityConfigurer> kafkaSourceSecurityConfigurerMockedStatic =
-                     mockStatic(KafkaSourceSecurityConfigurer.class)) {
+        try (final MockedStatic<KafkaSecurityConfigurer> kafkaSourceSecurityConfigurerMockedStatic =
+                     mockStatic(KafkaSecurityConfigurer.class)) {
             kafkaSourceSecurityConfigurerMockedStatic.when(() ->
-                    KafkaSourceSecurityConfigurer.setAuthProperties(eq(consumerProperties), eq(newConfig), any())
+                    KafkaSecurityConfigurer.setAuthProperties(eq(consumerProperties), eq(newConfig), any())
             ).thenAnswer(invocation -> null);
             objectUnderTest.update(newConfig);
         }
