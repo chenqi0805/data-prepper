@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.apache.commons.lang3.exception.ExceptionUtils.getRootCause;
 
@@ -69,7 +70,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     static final String DEFAULT_KEY = "message";
 
     private volatile long lastCommitTime;
-    private KafkaConsumer consumer= null;
+    private Supplier<KafkaConsumer> consumerSupplier;
     private AtomicBoolean shutdownInProgress;
     private final String topicName;
     private final TopicConfig topicConfig;
@@ -93,7 +94,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     private final LogRateLimiter errLogRateLimiter;
     private final ByteDecoder byteDecoder;
 
-    public KafkaCustomConsumer(final KafkaConsumer consumer,
+    public KafkaCustomConsumer(final Supplier<KafkaConsumer> consumerSupplier,
                                final AtomicBoolean shutdownInProgress,
                                final Buffer<Record<Event>> buffer,
                                final KafkaConsumerConfig consumerConfig,
@@ -105,11 +106,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
         this.topicName = topicConfig.getName();
         this.topicConfig = topicConfig;
         this.shutdownInProgress = shutdownInProgress;
-        this.consumer = consumer;
+        this.consumerSupplier = consumerSupplier;
         this.buffer = buffer;
         this.byteDecoder = byteDecoder;
         this.topicMetrics = topicMetrics;
-        this.topicMetrics.register(consumer);
+        this.topicMetrics.register(consumerSupplier);
         this.offsetsToCommit = new HashMap<>();
         this.ownedPartitionsEpoch = new HashMap<>();
         this.metricsUpdatedTime = Instant.now().getEpochSecond();
@@ -169,7 +170,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     public <T> void consumeRecords() throws Exception {
         try {
             ConsumerRecords<String, T> records =
-                    consumer.poll(Duration.ofMillis(topicConfig.getThreadWaitingTime().toMillis()/2));
+                    consumerSupplier.get().poll(Duration.ofMillis(topicConfig.getThreadWaitingTime().toMillis()/2));
             if (Objects.nonNull(records) && !records.isEmpty() && records.count() > 0) {
                 Map<TopicPartition, CommitOffsetRange> offsets = new HashMap<>();
                 AcknowledgementSet acknowledgementSet = null;
@@ -199,7 +200,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                 Thread.sleep(30000);
             } else {
                 LOG.warn("Seeking past the error record");
-                consumer.seek(e.topicPartition(), e.offset() + 1);
+                consumerSupplier.get().seek(e.topicPartition(), e.offset() + 1);
 
                 // Update failed record offset in commitTracker because we are not
                 // processing it and seeking past the error record.
@@ -231,13 +232,13 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
         if (partitionsToReset.size() > 0) {
             partitionsToReset.forEach(partition -> {
                 try {
-                    final OffsetAndMetadata offsetAndMetadata = consumer.committed(partition);
+                    final OffsetAndMetadata offsetAndMetadata = consumerSupplier.get().committed(partition);
                     if (Objects.isNull(offsetAndMetadata)) {
                         LOG.info("Seeking partition {} to the beginning", partition);
-                        consumer.seekToBeginning(List.of(partition));
+                        consumerSupplier.get().seekToBeginning(List.of(partition));
                     } else {
                         LOG.info("Seeking partition {} to {}", partition, offsetAndMetadata.offset());
-                        consumer.seek(partition, offsetAndMetadata);
+                        consumerSupplier.get().seek(partition, offsetAndMetadata);
                     }
                     partitionCommitTrackerMap.remove(partition.partition());
                 } catch (Exception e) {
@@ -293,7 +294,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
             offsetsToCommit.forEach(((partition, offset) -> updateCommitCountMetric(partition, offset)));
             try {
-                consumer.commitSync(offsetsToCommit);
+                consumerSupplier.get().commitSync(offsetsToCommit);
             } catch (Exception e) {
                 LOG.error("Failed to commit offsets in topic {}", topicName, e);
             }
@@ -314,11 +315,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
     @Override
     public void run() {
-        consumer.subscribe(Arrays.asList(topicName), this);
-        Set<TopicPartition> partitions = consumer.assignment();
+        consumerSupplier.get().subscribe(Arrays.asList(topicName), this);
+        Set<TopicPartition> partitions = consumerSupplier.get().assignment();
         final long currentEpoch = getCurrentTimeNanos();
         partitions.forEach((partition) -> {
-            final OffsetAndMetadata offsetAndMetadata = consumer.committed(partition);
+            final OffsetAndMetadata offsetAndMetadata = consumerSupplier.get().committed(partition);
             LOG.info("Starting consumer with topic partition ({}) offset {}", partition, offsetAndMetadata);
             ownedPartitionsEpoch.put(partition, currentEpoch);
         });
@@ -334,7 +335,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                     resetOffsets();
                 }
                 consumeRecords();
-                topicMetrics.update(consumer);
+                topicMetrics.update(consumerSupplier);
                 retryingAfterException = false;
             } catch (Exception exp) {
                 LOG.error("Error while reading the records from the topic {}. Retry after 10 seconds", topicName, exp);
@@ -462,11 +463,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     }
 
     public void closeConsumer(){
-        consumer.close();
+        consumerSupplier.get().close();
     }
 
     public void shutdownConsumer(){
-        consumer.wakeup();
+        consumerSupplier.get().wakeup();
     }
 
     @Override
@@ -509,9 +510,9 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
     final void dumpTopicPartitionOffsets(final Collection<TopicPartition> partitions) {
         try {
-            final Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(new HashSet<>(partitions));
-            final Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(partitions);
-            final Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+            final Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumerSupplier.get().committed(new HashSet<>(partitions));
+            final Map<TopicPartition, Long> beginningOffsets = consumerSupplier.get().beginningOffsets(partitions);
+            final Map<TopicPartition, Long> endOffsets = consumerSupplier.get().endOffsets(partitions);
             for (TopicPartition topicPartition : partitions) {
                 final OffsetAndMetadata offsetAndMetadata = committedOffsets.get(topicPartition);
                 LOG.info("Partition {} offsets: beginningOffset: {}, endOffset: {}, committedOffset: {}",

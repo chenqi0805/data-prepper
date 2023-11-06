@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.function.Supplier;
 
 public class KafkaTopicMetrics {
     static final String NUMBER_OF_POSITIVE_ACKNOWLEDGEMENTS = "numberOfPositiveAcknowledgements";
@@ -30,7 +31,7 @@ public class KafkaTopicMetrics {
     private final String topicName;
     private long updateTime;
     private Map<String, String> metricsNameMap;
-    private Map<KafkaConsumer, Map<String, Double>> metricValues;
+    private Map<Supplier<KafkaConsumer>, Map<String, Double>> metricValues;
     private final PluginMetrics pluginMetrics;
     private final Counter numberOfPositiveAcknowledgements;
     private final Counter numberOfNegativeAcknowledgements;
@@ -76,7 +77,7 @@ public class KafkaTopicMetrics {
             if (metricName.equals("records-lag-max")) {
                 pluginMetrics.gauge(getTopicMetricName(camelCaseName), metricValues, metricValues -> {
                     double max = 0.0;
-                    for (Map.Entry<KafkaConsumer, Map<String, Double>> entry : metricValues.entrySet()) {
+                    for (Map.Entry<Supplier<KafkaConsumer>, Map<String, Double>> entry : metricValues.entrySet()) {
                         Map<String, Double> consumerMetrics = entry.getValue();
                         synchronized(consumerMetrics) {
                             max = Math.max(max, consumerMetrics.get(metricName));
@@ -87,7 +88,7 @@ public class KafkaTopicMetrics {
             } else if (metricName.equals("records-lead-min")) {
                 pluginMetrics.gauge(getTopicMetricName(camelCaseName), metricValues, metricValues -> {
                     double min = Double.MAX_VALUE;
-                    for (Map.Entry<KafkaConsumer, Map<String, Double>> entry : metricValues.entrySet()) {
+                    for (Map.Entry<Supplier<KafkaConsumer>, Map<String, Double>> entry : metricValues.entrySet()) {
                         Map<String, Double> consumerMetrics = entry.getValue();
                         synchronized(consumerMetrics) {
                             min = Math.min(min, consumerMetrics.get(metricName));
@@ -98,7 +99,7 @@ public class KafkaTopicMetrics {
             } else if (!metricName.contains("-total")) {
                 pluginMetrics.gauge(getTopicMetricName(camelCaseName), metricValues, metricValues -> {
                     double sum = 0;
-                    for (Map.Entry<KafkaConsumer, Map<String, Double>> entry : metricValues.entrySet()) {
+                    for (Map.Entry<Supplier<KafkaConsumer>, Map<String, Double>> entry : metricValues.entrySet()) {
                         Map<String, Double> consumerMetrics = entry.getValue();
                         synchronized(consumerMetrics) {
                             sum += consumerMetrics.get(metricName);
@@ -110,9 +111,9 @@ public class KafkaTopicMetrics {
         });
     }
 
-    public void register(final KafkaConsumer consumer) {
-        metricValues.put(consumer, new HashMap<>());
-        final Map<String, Double> consumerMetrics = metricValues.get(consumer);
+    public void register(final Supplier<KafkaConsumer> consumerSupplier) {
+        metricValues.put(consumerSupplier, new HashMap<>());
+        final Map<String, Double> consumerMetrics = metricValues.get(consumerSupplier);
         metricsNameMap.forEach((k, name) -> {
             consumerMetrics.put(k, 0.0);
         });
@@ -166,14 +167,14 @@ public class KafkaTopicMetrics {
         return camelCaseName;
     }
 
-    Map<KafkaConsumer, Map<String, Double>> getMetricValues() {
+    Map<Supplier<KafkaConsumer>, Map<String, Double>> getMetricValues() {
         return metricValues;
     }
 
-    public void update(final KafkaConsumer consumer) {
-        Map<String, Double> consumerMetrics = metricValues.get(consumer);
+    public void update(final Supplier<KafkaConsumer> consumerSupplier) {
+        Map<String, Double> consumerMetrics = metricValues.get(consumerSupplier);
 
-        Map<MetricName, ? extends Metric> metrics = consumer.metrics();
+        Map<MetricName, ? extends Metric> metrics = consumerSupplier.get().metrics();
         for (Map.Entry<MetricName, ? extends Metric> entry : metrics.entrySet()) {
             MetricName metric = entry.getKey();
             Metric value = entry.getValue();
