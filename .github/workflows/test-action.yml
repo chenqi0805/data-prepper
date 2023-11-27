@@ -3,9 +3,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-env:
-  # Setting an environment variable with the value of a configuration variable
-  env_var: ${{ vars.ENV_CONTEXT_VAR }}
 
 jobs:
   display-variables:
@@ -18,7 +15,7 @@ jobs:
           echo "repository variable : $REPOSITORY_VAR"
           echo "organization variable : $ORGANIZATION_VAR"
           echo "overridden variable : $OVERRIDE_VAR"
-          echo "variable from shell environment : $env_var"
+          echo "variable from shell environment : ${{ vars.ENV_CONTEXT_VAR }}"
         env:
           REPOSITORY_VAR: ${{ vars.REPOSITORY_VAR }}
           ORGANIZATION_VAR: ${{ vars.ORGANIZATION_VAR }}
