@@ -11,7 +11,6 @@ jobs:
   display-variables:
     name: ${{ vars.JOB_NAME }}
     # You can use configuration variables with the `vars` context for dynamic jobs
-    if: ${{ vars.USE_VARIABLES == "true" }}
     runs-on: ${{ vars.RUNNER }}
     environment: ${{ vars.ENVIRONMENT_STAGE }}
     steps:
@@ -27,7 +26,6 @@ jobs:
           OVERRIDE_VAR: ${{ vars.OVERRIDE_VAR }}
 
       - name: ${{ vars.HELLO_WORLD_STEP }}
-        if: ${{ vars.HELLO_WORLD_ENABLED == "true" }}
         uses: actions/hello-world-javascript-action@main
         with:
           who-to-greet: ${{ vars.GREET_NAME }}
