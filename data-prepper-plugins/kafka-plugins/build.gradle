@@ -21,7 +21,7 @@ dependencies {
     implementation 'io.confluent:kafka-schema-registry-client:7.3.3'
     implementation 'io.confluent:kafka-schema-registry:7.3.3:tests'
     implementation 'software.amazon.msk:aws-msk-iam-auth:1.1.6'
-    implementation 'software.amazon.awssdk:sts:2.20.103'
+    implementation 'software.amazon.awssdk:sts:2.21.36'
     implementation 'software.amazon.awssdk:auth:2.20.103'
     implementation 'software.amazon.awssdk:kafka:2.20.103'
     implementation 'software.amazon.glue:schema-registry-serde:1.1.15'
