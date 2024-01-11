@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class KafkaTopicConsumerMetrics {
     static final String NUMBER_OF_POSITIVE_ACKNOWLEDGEMENTS = "numberOfPositiveAcknowledgements";
@@ -47,7 +48,7 @@ public class KafkaTopicConsumerMetrics {
         this.pluginMetrics = pluginMetrics;
         this.topicName = topicName;
         this.updateTime = Instant.now().getEpochSecond();
-        this.metricValues = new HashMap<>();
+        this.metricValues = new ConcurrentHashMap<>();
         initializeMetricNamesMap(topicNameInMetrics);
         this.numberOfRecordsConsumed = pluginMetrics.counter(getTopicMetricName(NUMBER_OF_RECORDS_CONSUMED, topicNameInMetrics));
         this.numberOfBytesConsumed = pluginMetrics.counter(getTopicMetricName(NUMBER_OF_BYTES_CONSUMED, topicNameInMetrics));
@@ -112,11 +113,22 @@ public class KafkaTopicConsumerMetrics {
     }
 
     public void register(final KafkaConsumer consumer) {
-        metricValues.put(consumer, new HashMap<>());
-        final Map<String, Double> consumerMetrics = metricValues.get(consumer);
-        metricsNameMap.forEach((k, name) -> {
-            consumerMetrics.put(k, 0.0);
+        metricValues.computeIfAbsent(consumer, kafkaConsumer -> {
+            final Map<String, Double> consumerMetrics = new HashMap<>();
+            metricsNameMap.forEach((k, name) -> {
+                consumerMetrics.put(k, 0.0);
+            });
+            return consumerMetrics;
         });
+//        metricValues.put(consumer, new HashMap<>());
+//        final Map<String, Double> consumerMetrics = metricValues.get(consumer);
+//        metricsNameMap.forEach((k, name) -> {
+//            consumerMetrics.put(k, 0.0);
+//        });
+    }
+
+    public void deregister(final KafkaConsumer consumer) {
+        metricValues.remove(consumer);
     }
 
     Counter getNumberOfRecordsConsumed() {
@@ -176,44 +188,85 @@ public class KafkaTopicConsumerMetrics {
     }
 
     public void update(final KafkaConsumer consumer) {
-        Map<String, Double> consumerMetrics = metricValues.get(consumer);
-        Map<MetricName, ? extends Metric> metrics = consumer.metrics();
-        for (Map.Entry<MetricName, ? extends Metric> entry : metrics.entrySet()) {
-            MetricName metric = entry.getKey();
-            Metric value = entry.getValue();
-            String metricName = metric.name();
-            if (Objects.nonNull(metricsNameMap.get(metricName))) {
-                if (metric.tags().containsKey("partition") &&
-                   (metricName.equals("records-lag-max") || metricName.equals("records-lead-min"))) {
-                   continue;
-                }
+        metricValues.computeIfPresent(consumer, (kafkaConsumer, consumerMetrics) -> {
+            Map<MetricName, ? extends Metric> metrics = kafkaConsumer.metrics();
+            for (Map.Entry<MetricName, ? extends Metric> entry : metrics.entrySet()) {
+                MetricName metric = entry.getKey();
+                Metric value = entry.getValue();
+                String metricName = metric.name();
+                if (Objects.nonNull(metricsNameMap.get(metricName))) {
+                    if (metric.tags().containsKey("partition") &&
+                            (metricName.equals("records-lag-max") || metricName.equals("records-lead-min"))) {
+                        continue;
+                    }
 
-                if (metricName.contains("consumed-total") && !metric.tags().containsKey("topic")) {
-                    continue;
-                }
-                if (metricName.contains("byte-rate") && metric.tags().containsKey("node-id")) {
-                    continue;
-                }
-                double newValue = (Double)value.metricValue();
-                if (metricName.equals("records-consumed-total")) {
-                    synchronized(consumerMetrics) {
-                        double prevValue = consumerMetrics.get(metricName);
-                        numberOfRecordsConsumed.increment(newValue - prevValue);
+                    if (metricName.contains("consumed-total") && !metric.tags().containsKey("topic")) {
+                        continue;
                     }
-                } else if (metricName.equals("bytes-consumed-total")) {
-                    synchronized(consumerMetrics) {
-                        double prevValue = consumerMetrics.get(metricName);
-                        numberOfBytesConsumed.increment(newValue - prevValue);
+                    if (metricName.contains("byte-rate") && metric.tags().containsKey("node-id")) {
+                        continue;
                     }
-                }
-                // Keep the count of number of consumers without any assigned partitions. This value can go up or down. So, it is made as Guage metric
-                if (metricName.equals("assigned-partitions")) {
-                    newValue = (newValue == 0.0) ? 1.0 : 0.0;
-                }
-                synchronized(consumerMetrics) {
-                    consumerMetrics.put(metricName, newValue);
+                    double newValue = (Double)value.metricValue();
+                    if (metricName.equals("records-consumed-total")) {
+                        synchronized(consumerMetrics) {
+                            double prevValue = consumerMetrics.get(metricName);
+                            numberOfRecordsConsumed.increment(newValue - prevValue);
+                        }
+                    } else if (metricName.equals("bytes-consumed-total")) {
+                        synchronized(consumerMetrics) {
+                            double prevValue = consumerMetrics.get(metricName);
+                            numberOfBytesConsumed.increment(newValue - prevValue);
+                        }
+                    }
+                    // Keep the count of number of consumers without any assigned partitions. This value can go up or down. So, it is made as Guage metric
+                    if (metricName.equals("assigned-partitions")) {
+                        newValue = (newValue == 0.0) ? 1.0 : 0.0;
+                    }
+                    synchronized(consumerMetrics) {
+                        consumerMetrics.put(metricName, newValue);
+                    }
                 }
             }
-        }
+            return consumerMetrics;
+        });
+//        Map<String, Double> consumerMetrics = metricValues.get(consumer);
+//        Map<MetricName, ? extends Metric> metrics = consumer.metrics();
+//        for (Map.Entry<MetricName, ? extends Metric> entry : metrics.entrySet()) {
+//            MetricName metric = entry.getKey();
+//            Metric value = entry.getValue();
+//            String metricName = metric.name();
+//            if (Objects.nonNull(metricsNameMap.get(metricName))) {
+//                if (metric.tags().containsKey("partition") &&
+//                   (metricName.equals("records-lag-max") || metricName.equals("records-lead-min"))) {
+//                   continue;
+//                }
+//
+//                if (metricName.contains("consumed-total") && !metric.tags().containsKey("topic")) {
+//                    continue;
+//                }
+//                if (metricName.contains("byte-rate") && metric.tags().containsKey("node-id")) {
+//                    continue;
+//                }
+//                double newValue = (Double)value.metricValue();
+//                if (metricName.equals("records-consumed-total")) {
+//                    synchronized(consumerMetrics) {
+//                        double prevValue = consumerMetrics.get(metricName);
+//                        numberOfRecordsConsumed.increment(newValue - prevValue);
+//                    }
+//                } else if (metricName.equals("bytes-consumed-total")) {
+//                    synchronized(consumerMetrics) {
+//                        double prevValue = consumerMetrics.get(metricName);
+//                        numberOfBytesConsumed.increment(newValue - prevValue);
+//                    }
+//                }
+//                // Keep the count of number of consumers without any assigned partitions. This value can go up or down. So, it is made as Guage metric
+//                if (metricName.equals("assigned-partitions")) {
+//                    newValue = (newValue == 0.0) ? 1.0 : 0.0;
+//                }
+//                synchronized(consumerMetrics) {
+//                    consumerMetrics.put(metricName, newValue);
+//                }
+//            }
+//        }
     }
 }

@@ -91,7 +91,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     private final PauseConsumePredicate pauseConsumePredicate;
     private long metricsUpdatedTime;
     private final AtomicInteger numberOfAcksPending;
-    private long numRecordsCommitted = 0;
+    private long numRecordsCommitted;
     private final LogRateLimiter errLogRateLimiter;
     private final ByteDecoder byteDecoder;
 
@@ -104,7 +104,18 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                                final AcknowledgementSetManager acknowledgementSetManager,
                                final ByteDecoder byteDecoder,
                                final KafkaTopicConsumerMetrics topicMetrics,
-                               final PauseConsumePredicate pauseConsumePredicate) {
+                               final PauseConsumePredicate pauseConsumePredicate,
+                               final Map<TopicPartition, OffsetAndMetadata> offsetsToCommit,
+                               final List<Map<TopicPartition, CommitOffsetRange>> acknowledgedOffsets,
+                               final Map<TopicPartition, Long> ownedPartitionsEpoch,
+                               final long metricsUpdatedTime,
+                               final Map<Integer, TopicPartitionCommitTracker> partitionCommitTrackerMap,
+                               final Set<TopicPartition> partitionsToReset,
+                               final BufferAccumulator<Record<Event>> bufferAccumulator,
+                               final long lastCommitTime,
+                               final AtomicInteger numberOfAcksPending,
+                               final LogRateLimiter errLogRateLimiter,
+                               final long numRecordsCommitted) {
         this.topicName = topicConfig.getName();
         this.topicConfig = topicConfig;
         this.shutdownInProgress = shutdownInProgress;
@@ -114,25 +125,116 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
         this.topicMetrics = topicMetrics;
         this.pauseConsumePredicate = pauseConsumePredicate;
         this.topicMetrics.register(consumer);
-        this.offsetsToCommit = new HashMap<>();
-        this.ownedPartitionsEpoch = new HashMap<>();
-        this.metricsUpdatedTime = Instant.now().getEpochSecond();
-        this.acknowledgedOffsets = new ArrayList<>();
+        this.offsetsToCommit = offsetsToCommit;
+        this.ownedPartitionsEpoch = ownedPartitionsEpoch;
+        this.metricsUpdatedTime = metricsUpdatedTime;
+        this.acknowledgedOffsets = acknowledgedOffsets;
         this.acknowledgementsTimeout = Duration.ofSeconds(Integer.MAX_VALUE);
         this.acknowledgementsEnabled = consumerConfig.getAcknowledgementsEnabled();
         this.acknowledgementSetManager = acknowledgementSetManager;
-        this.partitionCommitTrackerMap = new HashMap<>();
-        this.partitionsToReset = Collections.synchronizedSet(new HashSet<>());
+        this.partitionCommitTrackerMap = partitionCommitTrackerMap;
+        this.partitionsToReset = partitionsToReset;
         this.schema = MessageFormat.getByMessageFormatByName(schemaType);
-        Duration bufferTimeout = Duration.ofSeconds(1);
-        this.bufferAccumulator = BufferAccumulator.create(buffer, DEFAULT_NUMBER_OF_RECORDS_TO_ACCUMULATE, bufferTimeout);
-        this.lastCommitTime = System.currentTimeMillis();
-        this.numberOfAcksPending = new AtomicInteger(0);
-        this.errLogRateLimiter = new LogRateLimiter(2, System.currentTimeMillis());
+        this.bufferAccumulator = bufferAccumulator;
+        this.lastCommitTime = lastCommitTime;
+        this.numberOfAcksPending = numberOfAcksPending;
+        this.errLogRateLimiter = errLogRateLimiter;
+        this.numRecordsCommitted = numRecordsCommitted;
+    }
+
+    public KafkaCustomConsumer(final KafkaConsumer consumer,
+                               final AtomicBoolean shutdownInProgress,
+                               final Buffer<Record<Event>> buffer,
+                               final KafkaConsumerConfig consumerConfig,
+                               final TopicConsumerConfig topicConfig,
+                               final String schemaType,
+                               final AcknowledgementSetManager acknowledgementSetManager,
+                               final ByteDecoder byteDecoder,
+                               final KafkaTopicConsumerMetrics topicMetrics,
+                               final PauseConsumePredicate pauseConsumePredicate) {
+        this(
+                consumer,
+                shutdownInProgress,
+                buffer,
+                consumerConfig,
+                topicConfig,
+                schemaType,
+                acknowledgementSetManager,
+                byteDecoder,
+                topicMetrics,
+                pauseConsumePredicate,
+                new HashMap<>(),
+                new ArrayList<>(),
+                new HashMap<>(),
+                Instant.now().getEpochSecond(),
+                new HashMap<>(),
+                Collections.synchronizedSet(new HashSet<>()),
+                BufferAccumulator.create(buffer, DEFAULT_NUMBER_OF_RECORDS_TO_ACCUMULATE, Duration.ofSeconds(1)),
+                System.currentTimeMillis(),
+                new AtomicInteger(0),
+                new LogRateLimiter(2, System.currentTimeMillis()),
+                0
+        );
+    }
+
+    String getTopicName() {
+        return topicName;
+    }
+
+    TopicConsumerConfig getTopicConfig() {
+        return topicConfig;
+    }
+
+    Buffer<Record<Event>> getBuffer() {
+        return buffer;
+    }
+
+    ByteDecoder getByteDecoder() {
+        return byteDecoder;
+    }
+
+    List<Map<TopicPartition, CommitOffsetRange>> getAcknowledgedOffsets() {
+        return Collections.unmodifiableList(acknowledgedOffsets);
+    }
+
+    Map<TopicPartition, Long> getOwnedPartitionsEpoch() {
+        return Collections.unmodifiableMap(ownedPartitionsEpoch);
+    }
+
+    long getMetricsUpdatedTime() {
+        return metricsUpdatedTime;
+    }
+
+    Map<Integer, TopicPartitionCommitTracker> getPartitionCommitTrackerMap() {
+        return Collections.unmodifiableMap(partitionCommitTrackerMap);
+    }
+
+    BufferAccumulator<Record<Event>> getBufferAccumulator() {
+        return bufferAccumulator;
+    }
+
+    Set<TopicPartition> getPartitionsToReset() {
+        return Collections.unmodifiableSet(partitionsToReset);
+    }
+
+    long getLastCommitTime() {
+        return lastCommitTime;
+    }
+
+    AtomicInteger getNumberOfAcksPending() {
+        return numberOfAcksPending;
+    }
+
+    LogRateLimiter getErrLogRateLimiter() {
+        return errLogRateLimiter;
     }
 
     KafkaTopicConsumerMetrics getTopicMetrics() {
         return topicMetrics;
+    }
+
+    KafkaConsumer getConsumer() {
+        return consumer;
     }
 
     private long getCurrentTimeNanos() {
