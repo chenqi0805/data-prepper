@@ -19,6 +19,8 @@ import org.opensearch.dataprepper.model.acknowledgements.AcknowledgementSetManag
 import org.opensearch.dataprepper.model.buffer.Buffer;
 import org.opensearch.dataprepper.model.configuration.PipelineDescription;
 import org.opensearch.dataprepper.model.event.Event;
+import org.opensearch.dataprepper.model.plugin.PluginConfigObservable;
+import org.opensearch.dataprepper.model.plugin.PluginConfigObserver;
 import org.opensearch.dataprepper.model.record.Record;
 import org.opensearch.dataprepper.plugins.kafka.configuration.AuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.AwsConfig;
@@ -26,6 +28,7 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfi
 import org.opensearch.dataprepper.plugins.kafka.configuration.EncryptionConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.EncryptionType;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
+import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaConsumerFactory;
 import org.opensearch.dataprepper.plugins.kafka.extension.KafkaClusterConfigSupplier;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 
@@ -42,6 +45,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +62,9 @@ class KafkaSourceTest {
 
     @Mock
     private PluginMetrics pluginMetrics;
+
+    @Mock
+    private PluginConfigObservable pluginConfigObservable;
 
     @Mock
     private SchemaConfig schemaConfig;
@@ -80,7 +87,14 @@ class KafkaSourceTest {
     private static final String TEST_GROUP_ID = "testGroupId";
 
     public KafkaSource createObjectUnderTest() {
-        return new KafkaSource(sourceConfig, pluginMetrics, acknowledgementSetManager, pipelineDescription, kafkaClusterConfigSupplier);
+        return new KafkaSource(
+                sourceConfig,
+                pluginMetrics,
+                acknowledgementSetManager,
+                pipelineDescription,
+                kafkaClusterConfigSupplier,
+                pluginConfigObservable
+        );
     }
 
     @BeforeEach
@@ -149,6 +163,8 @@ class KafkaSourceTest {
         assertTrue(Objects.nonNull(kafkaSource));
         kafkaSource.start(buffer);
         assertTrue(Objects.nonNull(kafkaSource.getConsumer()));
+        verify(pluginConfigObservable, times(5)).addPluginConfigObserver(
+                any(PluginConfigObserver.class));
     }
 
     @Test
@@ -156,11 +172,12 @@ class KafkaSourceTest {
         when(topic1.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
         when(topic2.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
         kafkaSource = spy(createObjectUnderTest());
+        final KafkaConsumerFactory kafkaConsumerFactory = spy(kafkaSource.getKafkaConsumerFactory());
         doNothing().when(kafkaSource).sleep(anyLong());
 
         doThrow(new ConfigException("No resolvable bootstrap urls given in bootstrap.servers"))
             .doCallRealMethod()
-            .when(kafkaSource)
+            .when(kafkaConsumerFactory)
             .createKafkaConsumer(any(), any());
         kafkaSource.start(buffer);
     }

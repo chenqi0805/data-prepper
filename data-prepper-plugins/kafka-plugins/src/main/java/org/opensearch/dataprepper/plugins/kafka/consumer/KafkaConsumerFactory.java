@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.opensearch.dataprepper.plugins.kafka.configuration.AuthConfig;
@@ -19,6 +20,7 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.OAuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaRegistryType;
+import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaTypeReference;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfig;
 import org.opensearch.dataprepper.plugins.kafka.util.ClientDNSLookupType;
@@ -32,11 +34,14 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.lang.Thread.sleep;
+
 public class KafkaConsumerFactory {
+    private static final String NO_RESOLVABLE_URLS_ERROR_MESSAGE = "No resolvable bootstrap urls given in bootstrap.servers";
+    private static final long RETRY_SLEEP_INTERVAL = 30000;
     private static final Logger LOG = LoggerFactory.getLogger(KafkaConsumerFactory.class);
     private final StringDeserializer stringDeserializer = new StringDeserializer();
 
@@ -59,13 +64,36 @@ public class KafkaConsumerFactory {
 
     public KafkaConsumer<?, ?> createKafkaConsumer(final KafkaConsumerConfig kafkaConsumerConfig,
                                                    final TopicConsumerConfig topic) {
-        final AtomicReference<String> schemaTypeReference = new AtomicReference<>(MessageFormat.PLAINTEXT.toString());
+        final SchemaTypeReference schemaTypeReference = new SchemaTypeReference(
+                MessageFormat.PLAINTEXT.toString());
         Properties authProperties = new Properties();
         KafkaSecurityConfigurer.setAuthProperties(authProperties, kafkaConsumerConfig, LOG);
         Properties consumerProperties = getConsumerProperties(
                 kafkaConsumerConfig, topic, authProperties, schemaTypeReference);
-        MessageFormat schema = MessageFormat.getByMessageFormatByName(schemaTypeReference.get());
+        MessageFormat schema = MessageFormat.getByMessageFormatByName(schemaTypeReference.getValue());
 
+        while (true) {
+            try {
+                return createKafkaConsumer(kafkaConsumerConfig, schema, consumerProperties);
+            } catch (ConfigException ce) {
+                if (ce.getMessage().contains(NO_RESOLVABLE_URLS_ERROR_MESSAGE)) {
+                    LOG.warn("Exception while creating Kafka consumer: ", ce);
+                    LOG.warn("Bootstrap URL could not be resolved. Retrying in {} ms...", RETRY_SLEEP_INTERVAL);
+                    try {
+                        sleep(RETRY_SLEEP_INTERVAL);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(ie);
+                    }
+                } else {
+                    throw ce;
+                }
+            }
+        }
+    }
+
+    private KafkaConsumer createKafkaConsumer(final KafkaConsumerConfig kafkaConsumerConfig,
+                                              final MessageFormat schema, final Properties consumerProperties) {
         switch (schema) {
             case JSON:
                 return new KafkaConsumer<String, JsonNode>(consumerProperties);
@@ -86,7 +114,7 @@ public class KafkaConsumerFactory {
     private Properties getConsumerProperties(final KafkaConsumerConfig kafkaConsumerConfig,
                                              final TopicConsumerConfig topicConfig,
                                              final Properties authProperties,
-                                             final AtomicReference<String> schemaTypeReference) {
+                                             final SchemaTypeReference schemaTypeReference) {
         Properties properties = (Properties) authProperties.clone();
         if (StringUtils.isNotEmpty(kafkaConsumerConfig.getClientDnsLookup())) {
             ClientDNSLookupType dnsLookupType = ClientDNSLookupType.getDnsLookupType(kafkaConsumerConfig.getClientDnsLookup());
@@ -133,7 +161,7 @@ public class KafkaConsumerFactory {
     private void setSchemaRegistryProperties(final KafkaConsumerConfig kafkaConsumerConfig,
                                              final Properties properties,
                                              final TopicConfig topicConfig,
-                                             final AtomicReference<String> schemaTypeReference) {
+                                             final SchemaTypeReference schemaTypeReference) {
         SchemaConfig schemaConfig = kafkaConsumerConfig.getSchemaConfig();
         if (Objects.isNull(schemaConfig)) {
             setPropertiesForPlaintextAndJsonWithoutSchemaRegistry(properties, topicConfig, schemaTypeReference);
@@ -154,9 +182,9 @@ public class KafkaConsumerFactory {
     }
 
     private void setPropertiesForPlaintextAndJsonWithoutSchemaRegistry(
-            Properties properties, final TopicConfig topicConfig, final AtomicReference<String> schemaTypeReference) {
+            Properties properties, final TopicConfig topicConfig, final SchemaTypeReference schemaTypeReference) {
         MessageFormat dataFormat = topicConfig.getSerdeFormat();
-        schemaTypeReference.set(dataFormat.toString());
+        schemaTypeReference.setValue(dataFormat.toString());
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class);
         switch (dataFormat) {
@@ -174,7 +202,7 @@ public class KafkaConsumerFactory {
     private void setPropertiesForSchemaType(final KafkaConsumerConfig kafkaConsumerConfig,
                                             final Properties properties,
                                             final TopicConfig topic,
-                                            final AtomicReference<String> schemaTypeReference) {
+                                            final SchemaTypeReference schemaTypeReference) {
         Map prop = properties;
         Map<String, String> propertyMap = (Map<String, String>) prop;
         final SchemaConfig schemaConfig = kafkaConsumerConfig.getSchemaConfig();
@@ -191,7 +219,7 @@ public class KafkaConsumerFactory {
             LOG.error("Failed to connect to the schema registry...");
             throw new RuntimeException(e);
         }
-        schemaTypeReference.set(schemaType);
+        schemaTypeReference.setValue(schemaType);
         if (schemaType.equalsIgnoreCase(MessageFormat.JSON.toString())) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaJsonSchemaDeserializer.class);
             properties.put("json.value.type", "com.fasterxml.jackson.databind.JsonNode");

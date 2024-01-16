@@ -149,7 +149,7 @@ public class KafkaCustomConsumerTest {
 
     public KafkaCustomConsumer createObjectUnderTest(String schemaType, boolean acknowledgementsEnabled) {
         when(sourceConfig.getAcknowledgementsEnabled()).thenReturn(acknowledgementsEnabled);
-        return new KafkaCustomConsumer(kafkaConsumer, shutdownInProgress, buffer, sourceConfig, topicConfig, schemaType,
+        return new KafkaCustomConsumer(() -> kafkaConsumer, shutdownInProgress, buffer, sourceConfig, topicConfig, schemaType,
                 acknowledgementSetManager, null, topicMetrics, pauseConsumePredicate);
     }
 

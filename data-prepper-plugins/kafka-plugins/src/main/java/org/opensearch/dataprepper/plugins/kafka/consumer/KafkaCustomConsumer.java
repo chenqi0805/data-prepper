@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.apache.commons.lang3.exception.ExceptionUtils.getRootCause;
 
@@ -70,8 +71,8 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     static final String DEFAULT_KEY = "message";
 
     private volatile long lastCommitTime;
-    private KafkaConsumer consumer= null;
     private AtomicBoolean shutdownInProgress;
+    private final Supplier<KafkaConsumer> kafkaConsumerSupplier;
     private final String topicName;
     private final TopicConsumerConfig topicConfig;
     private MessageFormat schema;
@@ -91,58 +92,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     private final PauseConsumePredicate pauseConsumePredicate;
     private long metricsUpdatedTime;
     private final AtomicInteger numberOfAcksPending;
-    private long numRecordsCommitted;
+    private long numRecordsCommitted = 0;
     private final LogRateLimiter errLogRateLimiter;
     private final ByteDecoder byteDecoder;
 
-    public KafkaCustomConsumer(final KafkaConsumer consumer,
-                               final AtomicBoolean shutdownInProgress,
-                               final Buffer<Record<Event>> buffer,
-                               final KafkaConsumerConfig consumerConfig,
-                               final TopicConsumerConfig topicConfig,
-                               final String schemaType,
-                               final AcknowledgementSetManager acknowledgementSetManager,
-                               final ByteDecoder byteDecoder,
-                               final KafkaTopicConsumerMetrics topicMetrics,
-                               final PauseConsumePredicate pauseConsumePredicate,
-                               final Map<TopicPartition, OffsetAndMetadata> offsetsToCommit,
-                               final List<Map<TopicPartition, CommitOffsetRange>> acknowledgedOffsets,
-                               final Map<TopicPartition, Long> ownedPartitionsEpoch,
-                               final long metricsUpdatedTime,
-                               final Map<Integer, TopicPartitionCommitTracker> partitionCommitTrackerMap,
-                               final Set<TopicPartition> partitionsToReset,
-                               final BufferAccumulator<Record<Event>> bufferAccumulator,
-                               final long lastCommitTime,
-                               final AtomicInteger numberOfAcksPending,
-                               final LogRateLimiter errLogRateLimiter,
-                               final long numRecordsCommitted) {
-        this.topicName = topicConfig.getName();
-        this.topicConfig = topicConfig;
-        this.shutdownInProgress = shutdownInProgress;
-        this.consumer = consumer;
-        this.buffer = buffer;
-        this.byteDecoder = byteDecoder;
-        this.topicMetrics = topicMetrics;
-        this.pauseConsumePredicate = pauseConsumePredicate;
-        this.topicMetrics.register(consumer);
-        this.offsetsToCommit = offsetsToCommit;
-        this.ownedPartitionsEpoch = ownedPartitionsEpoch;
-        this.metricsUpdatedTime = metricsUpdatedTime;
-        this.acknowledgedOffsets = acknowledgedOffsets;
-        this.acknowledgementsTimeout = Duration.ofSeconds(Integer.MAX_VALUE);
-        this.acknowledgementsEnabled = consumerConfig.getAcknowledgementsEnabled();
-        this.acknowledgementSetManager = acknowledgementSetManager;
-        this.partitionCommitTrackerMap = partitionCommitTrackerMap;
-        this.partitionsToReset = partitionsToReset;
-        this.schema = MessageFormat.getByMessageFormatByName(schemaType);
-        this.bufferAccumulator = bufferAccumulator;
-        this.lastCommitTime = lastCommitTime;
-        this.numberOfAcksPending = numberOfAcksPending;
-        this.errLogRateLimiter = errLogRateLimiter;
-        this.numRecordsCommitted = numRecordsCommitted;
-    }
-
-    public KafkaCustomConsumer(final KafkaConsumer consumer,
+    public KafkaCustomConsumer(final Supplier<KafkaConsumer> kafkaConsumerSupplier,
                                final AtomicBoolean shutdownInProgress,
                                final Buffer<Record<Event>> buffer,
                                final KafkaConsumerConfig consumerConfig,
@@ -152,89 +106,34 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                                final ByteDecoder byteDecoder,
                                final KafkaTopicConsumerMetrics topicMetrics,
                                final PauseConsumePredicate pauseConsumePredicate) {
-        this(
-                consumer,
-                shutdownInProgress,
-                buffer,
-                consumerConfig,
-                topicConfig,
-                schemaType,
-                acknowledgementSetManager,
-                byteDecoder,
-                topicMetrics,
-                pauseConsumePredicate,
-                new HashMap<>(),
-                new ArrayList<>(),
-                new HashMap<>(),
-                Instant.now().getEpochSecond(),
-                new HashMap<>(),
-                Collections.synchronizedSet(new HashSet<>()),
-                BufferAccumulator.create(buffer, DEFAULT_NUMBER_OF_RECORDS_TO_ACCUMULATE, Duration.ofSeconds(1)),
-                System.currentTimeMillis(),
-                new AtomicInteger(0),
-                new LogRateLimiter(2, System.currentTimeMillis()),
-                0
-        );
-    }
-
-    String getTopicName() {
-        return topicName;
-    }
-
-    TopicConsumerConfig getTopicConfig() {
-        return topicConfig;
-    }
-
-    Buffer<Record<Event>> getBuffer() {
-        return buffer;
-    }
-
-    ByteDecoder getByteDecoder() {
-        return byteDecoder;
-    }
-
-    List<Map<TopicPartition, CommitOffsetRange>> getAcknowledgedOffsets() {
-        return Collections.unmodifiableList(acknowledgedOffsets);
-    }
-
-    Map<TopicPartition, Long> getOwnedPartitionsEpoch() {
-        return Collections.unmodifiableMap(ownedPartitionsEpoch);
-    }
-
-    long getMetricsUpdatedTime() {
-        return metricsUpdatedTime;
-    }
-
-    Map<Integer, TopicPartitionCommitTracker> getPartitionCommitTrackerMap() {
-        return Collections.unmodifiableMap(partitionCommitTrackerMap);
-    }
-
-    BufferAccumulator<Record<Event>> getBufferAccumulator() {
-        return bufferAccumulator;
-    }
-
-    Set<TopicPartition> getPartitionsToReset() {
-        return Collections.unmodifiableSet(partitionsToReset);
-    }
-
-    long getLastCommitTime() {
-        return lastCommitTime;
-    }
-
-    AtomicInteger getNumberOfAcksPending() {
-        return numberOfAcksPending;
-    }
-
-    LogRateLimiter getErrLogRateLimiter() {
-        return errLogRateLimiter;
+        this.topicName = topicConfig.getName();
+        this.topicConfig = topicConfig;
+        this.shutdownInProgress = shutdownInProgress;
+        this.kafkaConsumerSupplier = kafkaConsumerSupplier;
+        this.buffer = buffer;
+        this.byteDecoder = byteDecoder;
+        this.topicMetrics = topicMetrics;
+        this.pauseConsumePredicate = pauseConsumePredicate;
+        this.topicMetrics.register(kafkaConsumerSupplier.get());
+        this.offsetsToCommit = new HashMap<>();
+        this.ownedPartitionsEpoch = new HashMap<>();
+        this.metricsUpdatedTime = Instant.now().getEpochSecond();
+        this.acknowledgedOffsets = new ArrayList<>();
+        this.acknowledgementsTimeout = Duration.ofSeconds(Integer.MAX_VALUE);
+        this.acknowledgementsEnabled = consumerConfig.getAcknowledgementsEnabled();
+        this.acknowledgementSetManager = acknowledgementSetManager;
+        this.partitionCommitTrackerMap = new HashMap<>();
+        this.partitionsToReset = Collections.synchronizedSet(new HashSet<>());
+        this.schema = MessageFormat.getByMessageFormatByName(schemaType);
+        Duration bufferTimeout = Duration.ofSeconds(1);
+        this.bufferAccumulator = BufferAccumulator.create(buffer, DEFAULT_NUMBER_OF_RECORDS_TO_ACCUMULATE, bufferTimeout);
+        this.lastCommitTime = System.currentTimeMillis();
+        this.numberOfAcksPending = new AtomicInteger(0);
+        this.errLogRateLimiter = new LogRateLimiter(2, System.currentTimeMillis());
     }
 
     KafkaTopicConsumerMetrics getTopicMetrics() {
         return topicMetrics;
-    }
-
-    KafkaConsumer getConsumer() {
-        return consumer;
     }
 
     private long getCurrentTimeNanos() {
@@ -275,7 +174,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     <T> void consumeRecords() throws Exception {
         try {
             ConsumerRecords<String, T> records =
-                    consumer.poll(Duration.ofMillis(topicConfig.getThreadWaitingTime().toMillis()/2));
+                    kafkaConsumerSupplier.get().poll(Duration.ofMillis(topicConfig.getThreadWaitingTime().toMillis()/2));
             if (Objects.nonNull(records) && !records.isEmpty() && records.count() > 0) {
                 Map<TopicPartition, CommitOffsetRange> offsets = new HashMap<>();
                 AcknowledgementSet acknowledgementSet = null;
@@ -305,7 +204,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                 Thread.sleep(30000);
             } else {
                 LOG.warn("Seeking past the error record");
-                consumer.seek(e.topicPartition(), e.offset() + 1);
+                kafkaConsumerSupplier.get().seek(e.topicPartition(), e.offset() + 1);
 
                 // Update failed record offset in commitTracker because we are not
                 // processing it and seeking past the error record.
@@ -343,13 +242,13 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
         if (partitionsToReset.size() > 0) {
             partitionsToReset.forEach(partition -> {
                 try {
-                    final OffsetAndMetadata offsetAndMetadata = consumer.committed(partition);
+                    final OffsetAndMetadata offsetAndMetadata = kafkaConsumerSupplier.get().committed(partition);
                     if (Objects.isNull(offsetAndMetadata)) {
                         LOG.info("Seeking partition {} to the beginning", partition);
-                        consumer.seekToBeginning(List.of(partition));
+                        kafkaConsumerSupplier.get().seekToBeginning(List.of(partition));
                     } else {
                         LOG.info("Seeking partition {} to {}", partition, offsetAndMetadata.offset());
-                        consumer.seek(partition, offsetAndMetadata);
+                        kafkaConsumerSupplier.get().seek(partition, offsetAndMetadata);
                     }
                     partitionCommitTrackerMap.remove(partition.partition());
                     final long epoch = getCurrentTimeNanos();
@@ -407,7 +306,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
             offsetsToCommit.forEach(((partition, offset) -> updateCommitCountMetric(partition, offset)));
             try {
-                consumer.commitSync(offsetsToCommit);
+                kafkaConsumerSupplier.get().commitSync(offsetsToCommit);
             } catch (Exception e) {
                 LOG.error("Failed to commit offsets in topic {}", topicName, e);
             }
@@ -428,11 +327,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
     @Override
     public void run() {
-        consumer.subscribe(Arrays.asList(topicName), this);
-        Set<TopicPartition> partitions = consumer.assignment();
+        kafkaConsumerSupplier.get().subscribe(Arrays.asList(topicName), this);
+        Set<TopicPartition> partitions = kafkaConsumerSupplier.get().assignment();
         final long currentEpoch = getCurrentTimeNanos();
         partitions.forEach((partition) -> {
-            final OffsetAndMetadata offsetAndMetadata = consumer.committed(partition);
+            final OffsetAndMetadata offsetAndMetadata = kafkaConsumerSupplier.get().committed(partition);
             LOG.info("Starting consumer with topic partition ({}) offset {}", partition, offsetAndMetadata);
             ownedPartitionsEpoch.put(partition, currentEpoch);
         });
@@ -449,7 +348,7 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
                     resetOffsets();
                 }
                 consumeRecords();
-                topicMetrics.update(consumer);
+                topicMetrics.update(kafkaConsumerSupplier.get());
                 retryingAfterException = false;
             } catch (Exception exp) {
                 LOG.error("Error while reading the records from the topic {}. Retry after 10 seconds", topicName, exp);
@@ -585,11 +484,11 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
     }
 
     public void closeConsumer(){
-        consumer.close();
+        kafkaConsumerSupplier.get().close();
     }
 
     public void shutdownConsumer(){
-        consumer.wakeup();
+        kafkaConsumerSupplier.get().wakeup();
     }
 
     @Override
@@ -631,9 +530,9 @@ public class KafkaCustomConsumer implements Runnable, ConsumerRebalanceListener 
 
     final void dumpTopicPartitionOffsets(final Collection<TopicPartition> partitions) {
         try {
-            final Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(new HashSet<>(partitions));
-            final Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(partitions);
-            final Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+            final Map<TopicPartition, OffsetAndMetadata> committedOffsets = kafkaConsumerSupplier.get().committed(new HashSet<>(partitions));
+            final Map<TopicPartition, Long> beginningOffsets = kafkaConsumerSupplier.get().beginningOffsets(partitions);
+            final Map<TopicPartition, Long> endOffsets = kafkaConsumerSupplier.get().endOffsets(partitions);
             for (TopicPartition topicPartition : partitions) {
                 final OffsetAndMetadata offsetAndMetadata = committedOffsets.get(topicPartition);
                 LOG.info("Partition {} offsets: beginningOffset: {}, endOffset: {}, committedOffset: {}",

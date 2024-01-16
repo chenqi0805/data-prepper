@@ -7,12 +7,15 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfi
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfig;
 import org.opensearch.dataprepper.plugins.kafka.source.KafkaSourceConfig;
 import org.opensearch.dataprepper.plugins.kafka.util.KafkaTopicConsumerMetrics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class KafkaConsumerRefresher implements PluginComponentRefresher<KafkaConsumer, KafkaSourceConfig> {
+    private static final Logger LOG = LoggerFactory.getLogger(KafkaConsumerRefresher.class);
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final KafkaConsumerFactory kafkaConsumerFactory;
     private final TopicConsumerConfig topicConsumerConfig;
@@ -59,6 +62,8 @@ public class KafkaConsumerRefresher implements PluginComponentRefresher<KafkaCon
                 topicMetrics.register(newConsumer);
                 currentConsumer = newConsumer;
                 currentConfig = kafkaSourceConfig;
+            } catch (Exception e) {
+                LOG.error("Failed to refresh a kafkaConsumer for topic: {}.", topicConsumerConfig.getName(), e);
             } finally {
                 readWriteLock.writeLock().unlock();
             }
