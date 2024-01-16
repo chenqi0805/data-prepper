@@ -154,6 +154,7 @@ public class ConfluentKafkaProducerConsumerWithSchemaRegistryIT {
         jsonSourceConfig = mock(KafkaSourceConfig.class);
         avroSourceConfig = mock(KafkaSourceConfig.class);
         pluginMetrics = mock(PluginMetrics.class);
+        pluginConfigObservable = mock(PluginConfigObservable.class);
 	Random random = new Random();
 	testId = random.nextInt();
 	testValue = random.nextDouble();

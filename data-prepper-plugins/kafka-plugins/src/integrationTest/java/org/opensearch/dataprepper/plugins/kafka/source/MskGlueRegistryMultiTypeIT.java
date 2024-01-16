@@ -156,6 +156,7 @@ public class MskGlueRegistryMultiTypeIT {
         receivedRecords = new ArrayList<>();
         acknowledgementSetManager = mock(AcknowledgementSetManager.class);
         pipelineDescription = mock(PipelineDescription.class);
+        pluginConfigObservable = mock(PluginConfigObservable.class);
         when(sourceConfig.getAcknowledgementsEnabled()).thenReturn(false);
         when(sourceConfig.getSchemaConfig()).thenReturn(schemaConfig);
         when(schemaConfig.getType()).thenReturn(SchemaRegistryType.AWS_GLUE);

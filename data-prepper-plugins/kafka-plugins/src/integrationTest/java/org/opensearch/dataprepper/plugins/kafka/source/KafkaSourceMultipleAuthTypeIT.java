@@ -122,6 +122,7 @@ public class KafkaSourceMultipleAuthTypeIT {
         counter = mock(Counter.class);
         buffer = mock(Buffer.class);
         encryptionConfig = mock(EncryptionConfig.class);
+        pluginConfigObservable = mock(PluginConfigObservable.class);
         receivedRecords = new ArrayList<>();
         acknowledgementSetManager = mock(AcknowledgementSetManager.class);
         pipelineDescription = mock(PipelineDescription.class);

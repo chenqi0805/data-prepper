@@ -96,6 +96,7 @@ public class ConfluentKafkaProducerConsumerIT {
         numRecordsReceived = new AtomicInteger(0);
         sourceConfig = mock(KafkaSourceConfig.class);
         pluginMetrics = mock(PluginMetrics.class);
+        pluginConfigObservable = mock(PluginConfigObservable.class);
         authConfig = mock(AuthConfig.class);
         saslAuthConfig = mock(AuthConfig.SaslAuthConfig.class);
         plainTextAuthConfig = mock(PlainTextAuthConfig.class);
