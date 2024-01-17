@@ -21,6 +21,7 @@ import org.opensearch.dataprepper.model.event.Event;
 import org.opensearch.dataprepper.model.plugin.PluginConfigObservable;
 import org.opensearch.dataprepper.model.record.Record;
 import org.opensearch.dataprepper.model.source.Source;
+import org.opensearch.dataprepper.plugins.kafka.configuration.KafkaConsumerSchemaTypeFactory;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfig;
 import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaConsumerFactory;
 import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaConsumerRefresher;
@@ -55,7 +56,7 @@ public class KafkaSource implements Source<Record<Event>> {
     private static final String NO_RESOLVABLE_URLS_ERROR_MESSAGE = "No resolvable bootstrap urls given in bootstrap.servers";
     private static final long RETRY_SLEEP_INTERVAL = 30000;
     private static final Logger LOG = LoggerFactory.getLogger(KafkaSource.class);
-    private final KafkaConsumerFactory kafkaConsumerFactory = new KafkaConsumerFactory();
+    private final KafkaConsumerSchemaTypeFactory kafkaConsumerSchemaTypeFactory = new KafkaConsumerSchemaTypeFactory();
     private final KafkaSourceConfig sourceConfig;
     private final AtomicBoolean shutdownInProgress;
     private ExecutorService executorService;
@@ -64,7 +65,6 @@ public class KafkaSource implements Source<Record<Event>> {
     private KafkaCustomConsumer consumer;
     private final String pipelineName;
     private String consumerGroupID;
-    private String schemaType = MessageFormat.PLAINTEXT.toString();
     private final AcknowledgementSetManager acknowledgementSetManager;
     private static CachedSchemaRegistryClient schemaRegistryClient;
     private GlueSchemaRegistryKafkaDeserializer glueDeserializer;
@@ -104,12 +104,14 @@ public class KafkaSource implements Source<Record<Event>> {
                 allTopicExecutorServices.add(executorService);
 
                 IntStream.range(0, numWorkers).forEach(index -> {
+                    final MessageFormat schema = kafkaConsumerSchemaTypeFactory.deriveSchemaType(sourceConfig, topic);
+                    final KafkaConsumerFactory kafkaConsumerFactory = new KafkaConsumerFactory(schema);
                     final KafkaConsumer kafkaConsumer = kafkaConsumerFactory.createKafkaConsumer(sourceConfig, topic);
                     final KafkaConsumerRefresher kafkaConsumerRefresher = new KafkaConsumerRefresher(
                             kafkaConsumer, sourceConfig, topic, topicMetrics, kafkaConsumerFactory);
                     pluginConfigObservable.addPluginConfigObserver(
                             newConfig -> kafkaConsumerRefresher.update((KafkaSourceConfig) newConfig));
-                    consumer = new KafkaCustomConsumer(kafkaConsumerRefresher::get, shutdownInProgress, buffer, sourceConfig, topic, schemaType,
+                    consumer = new KafkaCustomConsumer(kafkaConsumerRefresher::get, shutdownInProgress, buffer, sourceConfig, topic, schema.name(),
                             acknowledgementSetManager, null, topicMetrics, PauseConsumePredicate.noPause());
                     allTopicConsumers.add(consumer);
 
@@ -162,8 +164,8 @@ public class KafkaSource implements Source<Record<Event>> {
         return consumer;
     }
 
-    KafkaConsumerFactory getKafkaConsumerFactory() {
-        return kafkaConsumerFactory;
+    KafkaConsumerSchemaTypeFactory getKafkaConsumerSchemaTypeFactory() {
+        return kafkaConsumerSchemaTypeFactory;
     }
 
     private long calculateLongestThreadWaitingTime() {

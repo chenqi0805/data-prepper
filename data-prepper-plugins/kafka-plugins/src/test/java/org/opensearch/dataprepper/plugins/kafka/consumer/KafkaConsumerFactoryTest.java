@@ -76,15 +76,14 @@ class KafkaConsumerFactoryTest {
     @ParameterizedTest
     @MethodSource("getMessageFormat")
     void testCreateKafkaConsumerWithNullSchemaConfig(final MessageFormat messageFormat) {
-        objectUnderTest = new KafkaConsumerFactory();
+        objectUnderTest = new KafkaConsumerFactory(messageFormat);
         when(kafkaConsumerConfig.getSchemaConfig()).thenReturn(null);
-        when(topic.getSerdeFormat()).thenReturn(messageFormat);
         assertThat(objectUnderTest.createKafkaConsumer(kafkaConsumerConfig, topic), instanceOf(KafkaConsumer.class));
     }
 
     @Test
     void testCreateKafkaConsumerWithAwsGlueSchemaConfigType() {
-        objectUnderTest = new KafkaConsumerFactory();
+        objectUnderTest = new KafkaConsumerFactory(MessageFormat.PLAINTEXT);
         when(schemaConfig.getType()).thenReturn(SchemaRegistryType.AWS_GLUE);
         when(kafkaConsumerConfig.getSchemaConfig()).thenReturn(schemaConfig);
         when(awsConfig.getRegion()).thenReturn(Region.US_EAST_1.id());
@@ -94,7 +93,7 @@ class KafkaConsumerFactoryTest {
 
     @Test
     void testRefreshKafkaConsumer() {
-        objectUnderTest = spy(new KafkaConsumerFactory());
+        objectUnderTest = spy(new KafkaConsumerFactory(MessageFormat.PLAINTEXT));
         final Random random = new Random();
         final Long testOffset = random.nextLong();
         final KafkaConsumer newConsumer = mock(KafkaConsumer.class);

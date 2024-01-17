@@ -2,8 +2,6 @@ package org.opensearch.dataprepper.plugins.kafka.consumer;
 
 import com.amazonaws.services.schemaregistry.deserializers.GlueSchemaRegistryKafkaDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.json.KafkaJsonSchemaDeserializer;
 import org.apache.avro.generic.GenericRecord;
@@ -20,7 +18,6 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.OAuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.PlainTextAuthConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaRegistryType;
-import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaTypeReference;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfig;
 import org.opensearch.dataprepper.plugins.kafka.util.ClientDNSLookupType;
@@ -29,7 +26,6 @@ import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +40,11 @@ public class KafkaConsumerFactory {
     private static final long RETRY_SLEEP_INTERVAL = 30000;
     private static final Logger LOG = LoggerFactory.getLogger(KafkaConsumerFactory.class);
     private final StringDeserializer stringDeserializer = new StringDeserializer();
+    private final MessageFormat schema;
+
+    public KafkaConsumerFactory(final MessageFormat schema) {
+        this.schema = schema;
+    }
 
     public KafkaConsumer<?, ?> refreshKafkaConsumer(final KafkaConsumer existingConsumer,
                                                     final KafkaConsumerConfig kafkaConsumerConfig,
@@ -64,13 +65,10 @@ public class KafkaConsumerFactory {
 
     public KafkaConsumer<?, ?> createKafkaConsumer(final KafkaConsumerConfig kafkaConsumerConfig,
                                                    final TopicConsumerConfig topic) {
-        final SchemaTypeReference schemaTypeReference = new SchemaTypeReference(
-                MessageFormat.PLAINTEXT.toString());
         Properties authProperties = new Properties();
         KafkaSecurityConfigurer.setAuthProperties(authProperties, kafkaConsumerConfig, LOG);
         Properties consumerProperties = getConsumerProperties(
-                kafkaConsumerConfig, topic, authProperties, schemaTypeReference);
-        MessageFormat schema = MessageFormat.getByMessageFormatByName(schemaTypeReference.getValue());
+                kafkaConsumerConfig, topic, authProperties);
 
         while (true) {
             try {
@@ -113,8 +111,7 @@ public class KafkaConsumerFactory {
 
     private Properties getConsumerProperties(final KafkaConsumerConfig kafkaConsumerConfig,
                                              final TopicConsumerConfig topicConfig,
-                                             final Properties authProperties,
-                                             final SchemaTypeReference schemaTypeReference) {
+                                             final Properties authProperties) {
         Properties properties = (Properties) authProperties.clone();
         if (StringUtils.isNotEmpty(kafkaConsumerConfig.getClientDnsLookup())) {
             ClientDNSLookupType dnsLookupType = ClientDNSLookupType.getDnsLookupType(kafkaConsumerConfig.getClientDnsLookup());
@@ -131,7 +128,7 @@ public class KafkaConsumerFactory {
             }
         }
         setConsumerTopicProperties(properties, topicConfig);
-        setSchemaRegistryProperties(kafkaConsumerConfig, properties, topicConfig, schemaTypeReference);
+        setSchemaRegistryProperties(kafkaConsumerConfig, properties, topicConfig);
         LOG.info("Starting consumer with the properties : {}", properties);
         return properties;
     }
@@ -160,11 +157,10 @@ public class KafkaConsumerFactory {
 
     private void setSchemaRegistryProperties(final KafkaConsumerConfig kafkaConsumerConfig,
                                              final Properties properties,
-                                             final TopicConfig topicConfig,
-                                             final SchemaTypeReference schemaTypeReference) {
+                                             final TopicConfig topicConfig) {
         SchemaConfig schemaConfig = kafkaConsumerConfig.getSchemaConfig();
         if (Objects.isNull(schemaConfig)) {
-            setPropertiesForPlaintextAndJsonWithoutSchemaRegistry(properties, topicConfig, schemaTypeReference);
+            setPropertiesForPlaintextAndJsonWithoutSchemaRegistry(properties);
             return;
         }
 
@@ -175,19 +171,17 @@ public class KafkaConsumerFactory {
         /* else schema registry type is Confluent */
         if (StringUtils.isNotEmpty(schemaConfig.getRegistryURL())) {
             setPropertiesForSchemaRegistryConnectivity(kafkaConsumerConfig, properties);
-            setPropertiesForSchemaType(kafkaConsumerConfig, properties, topicConfig, schemaTypeReference);
+            setPropertiesForSchemaType(kafkaConsumerConfig, properties, topicConfig);
         } else {
             throw new RuntimeException("RegistryURL must be specified for confluent schema registry");
         }
     }
 
     private void setPropertiesForPlaintextAndJsonWithoutSchemaRegistry(
-            Properties properties, final TopicConfig topicConfig, final SchemaTypeReference schemaTypeReference) {
-        MessageFormat dataFormat = topicConfig.getSerdeFormat();
-        schemaTypeReference.setValue(dataFormat.toString());
+            Properties properties) {
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class);
-        switch (dataFormat) {
+        switch (schema) {
             case JSON:
                 properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
                 break;
@@ -201,29 +195,11 @@ public class KafkaConsumerFactory {
 
     private void setPropertiesForSchemaType(final KafkaConsumerConfig kafkaConsumerConfig,
                                             final Properties properties,
-                                            final TopicConfig topic,
-                                            final SchemaTypeReference schemaTypeReference) {
-        Map prop = properties;
-        Map<String, String> propertyMap = (Map<String, String>) prop;
-        final SchemaConfig schemaConfig = kafkaConsumerConfig.getSchemaConfig();
-        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-        properties.put("schema.registry.url", schemaConfig.getRegistryURL());
-        properties.put("auto.register.schemas", false);
-        final CachedSchemaRegistryClient schemaRegistryClient = new CachedSchemaRegistryClient(
-                schemaConfig.getRegistryURL(), 100, propertyMap);
-        final String schemaType;
-        try {
-            schemaType = schemaRegistryClient.getSchemaMetadata(topic.getName() + "-value",
-                    kafkaConsumerConfig.getSchemaConfig().getVersion()).getSchemaType();
-        } catch (IOException | RestClientException e) {
-            LOG.error("Failed to connect to the schema registry...");
-            throw new RuntimeException(e);
-        }
-        schemaTypeReference.setValue(schemaType);
-        if (schemaType.equalsIgnoreCase(MessageFormat.JSON.toString())) {
+                                            final TopicConfig topic) {
+        if (schema.equals(MessageFormat.JSON)) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaJsonSchemaDeserializer.class);
             properties.put("json.value.type", "com.fasterxml.jackson.databind.JsonNode");
-        } else if (schemaType.equalsIgnoreCase(MessageFormat.AVRO.toString())) {
+        } else if (schema.equals(MessageFormat.AVRO.toString())) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
         } else {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,

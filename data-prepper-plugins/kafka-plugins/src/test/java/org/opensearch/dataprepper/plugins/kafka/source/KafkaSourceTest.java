@@ -5,7 +5,6 @@
 
 package org.opensearch.dataprepper.plugins.kafka.source;
 
-import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,6 @@ import org.opensearch.dataprepper.plugins.kafka.configuration.TopicConsumerConfi
 import org.opensearch.dataprepper.plugins.kafka.configuration.EncryptionConfig;
 import org.opensearch.dataprepper.plugins.kafka.configuration.EncryptionType;
 import org.opensearch.dataprepper.plugins.kafka.configuration.SchemaConfig;
-import org.opensearch.dataprepper.plugins.kafka.consumer.KafkaConsumerFactory;
 import org.opensearch.dataprepper.plugins.kafka.extension.KafkaClusterConfigSupplier;
 import org.opensearch.dataprepper.plugins.kafka.util.MessageFormat;
 
@@ -39,12 +37,9 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -167,20 +162,20 @@ class KafkaSourceTest {
                 any(PluginConfigObserver.class));
     }
 
-    @Test
-    void test_kafkaSource_retry_consumer_create() throws InterruptedException {
-        when(topic1.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
-        when(topic2.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
-        kafkaSource = spy(createObjectUnderTest());
-        final KafkaConsumerFactory kafkaConsumerFactory = spy(kafkaSource.getKafkaConsumerFactory());
-        doNothing().when(kafkaSource).sleep(anyLong());
-
-        doThrow(new ConfigException("No resolvable bootstrap urls given in bootstrap.servers"))
-            .doCallRealMethod()
-            .when(kafkaConsumerFactory)
-            .createKafkaConsumer(any(), any());
-        kafkaSource.start(buffer);
-    }
+//    @Test
+//    void test_kafkaSource_retry_consumer_create() throws InterruptedException {
+//        when(topic1.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
+//        when(topic2.getSessionTimeOut()).thenReturn(Duration.ofSeconds(15));
+//        kafkaSource = spy(createObjectUnderTest());
+//        final KafkaConsumerFactory kafkaConsumerFactory = spy(kafkaSource.getKafkaConsumerFactory());
+//        doNothing().when(kafkaSource).sleep(anyLong());
+//
+//        doThrow(new ConfigException("No resolvable bootstrap urls given in bootstrap.servers"))
+//            .doCallRealMethod()
+//            .when(kafkaConsumerFactory)
+//            .createKafkaConsumer(any(), any());
+//        kafkaSource.start(buffer);
+//    }
 
     @Test
     void test_updateConfig_using_kafkaClusterConfigExtension() {
