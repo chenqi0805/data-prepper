@@ -200,7 +200,7 @@ public class KafkaConsumerFactory {
         if (schema.equals(MessageFormat.JSON)) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaJsonSchemaDeserializer.class);
             properties.put("json.value.type", "com.fasterxml.jackson.databind.JsonNode");
-        } else if (schema.equals(MessageFormat.AVRO.toString())) {
+        } else if (schema.equals(MessageFormat.AVRO)) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
         } else {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
