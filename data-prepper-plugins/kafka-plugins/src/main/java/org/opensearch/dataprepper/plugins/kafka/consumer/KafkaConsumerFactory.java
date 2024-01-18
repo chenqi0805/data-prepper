@@ -196,6 +196,7 @@ public class KafkaConsumerFactory {
     private void setPropertiesForSchemaType(final KafkaConsumerConfig kafkaConsumerConfig,
                                             final Properties properties,
                                             final TopicConfig topic) {
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
         if (schema.equals(MessageFormat.JSON)) {
             properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaJsonSchemaDeserializer.class);
             properties.put("json.value.type", "com.fasterxml.jackson.databind.JsonNode");
