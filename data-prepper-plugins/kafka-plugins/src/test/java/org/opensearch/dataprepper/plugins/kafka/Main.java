@@ -136,7 +136,7 @@ public class Main {
         properties.put("security.protocol", "SASL_SSL");
         properties.put("sasl.mechanism", "PLAIN");
         properties.put("request.timeout.ms", 20000);
-        properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+username+"\" password=\""+password+"\";");
+        properties.put("client.dns.lookup", "use_all_dns_ips");
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
                 "io.confluent.kafka.serializers.KafkaAvroSerializer");
