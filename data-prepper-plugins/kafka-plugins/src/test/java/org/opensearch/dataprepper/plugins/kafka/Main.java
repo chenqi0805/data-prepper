@@ -3,6 +3,9 @@ package org.opensearch.dataprepper.plugins.kafka;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -11,6 +14,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.SerializationException;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -125,14 +129,59 @@ public class Main {
 
     }
 
+    public void produceAvroRecords(String topic, String servers, int numRecords, String username, String password) throws SerializationException {
+        Properties properties = new Properties();
+        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, servers);
+        properties.put("ssl.endpoint.identification.algorithm", "https");
+        properties.put("security.protocol", "SASL_SSL");
+        properties.put("sasl.mechanism", "PLAIN");
+        properties.put("request.timeout.ms", 20000);
+        properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+username+"\" password=\""+password+"\";");
+        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                "io.confluent.kafka.serializers.KafkaAvroSerializer");
+        properties.put("basic.auth.credentials.source", "USER_INFO");
+        properties.put("schema.registry.url", "https://psrc-e8157.us-east-2.aws.confluent.cloud");
+        properties.put("basic.auth.user.info", "7HTGQJCWT37CYCSA:O82vJ0cdCGIld0qVtOlIvnJEKuI2FEhlyZZRbnLrzunm0OjWEPfYpSZpRugmNpRN");
+        properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+ username +"\" password=\""+ password +"\";");
+
+        KafkaProducer<String, GenericRecord> producer = new KafkaProducer<String, GenericRecord>(properties);
+        String userSchema = "{\"type\":\"record\"," +
+                "\"name\":\"sampleAvroRecord\"," +
+                "\"fields\":[{\"name\":\"message\",\"type\":\"string\"}, {\"name\":\"ident\",\"type\":\"int\"}, {\"name\":\"score\",\"type\":\"double\"}]}";
+        Schema.Parser parser = new Schema.Parser();
+        Schema schema = parser.parse(userSchema);
+        for (int i = 0; i < numRecords; i++) {
+            GenericRecord avroRecord = new GenericData.Record(schema);
+            avroRecord.put("message", "M_"+RandomStringUtils.randomAlphabetic(5)+"_M_"+i);
+            avroRecord.put("ident", i);
+            avroRecord.put("score", (i+1));
+            String key = "key"+String.valueOf(i);
+            ProducerRecord<String, GenericRecord> record = new ProducerRecord<String, GenericRecord>(topic, key, avroRecord);
+            producer.send(record);
+        }
+        producer.flush();
+    }
+
     @Test
-    void generate() throws Throwable {
+    void generateJSON() throws Throwable {
 //        createTopic("pkc-rgm37.us-west-2.aws.confluent.cloud:9092", "Q5OE24C6PM4UQC5Q", "NqxLY3IB4or56QPxH5VIW0zTRRm6oBUzEpDFfJ0HEmXKmu7HT8toT/3ahhFFSDsJ");
         String topic = System.getenv("TOPIC");
         String bootstrapServers = System.getenv("BOOTSTRAP_SERVERS");
         String username = System.getenv("USERNAME");
         String password = System.getenv("PASSWORD");
         produceJsonRecords(topic, bootstrapServers, 10,
+                username, password);
+    }
+
+    @Test
+    void generateAvro() throws Throwable {
+//        createTopic("pkc-rgm37.us-west-2.aws.confluent.cloud:9092", "Q5OE24C6PM4UQC5Q", "NqxLY3IB4or56QPxH5VIW0zTRRm6oBUzEpDFfJ0HEmXKmu7HT8toT/3ahhFFSDsJ");
+        String topic = System.getenv("TOPIC");
+        String bootstrapServers = System.getenv("BOOTSTRAP_SERVERS");
+        String username = System.getenv("USERNAME");
+        String password = System.getenv("PASSWORD");
+        produceAvroRecords(topic, bootstrapServers, 10,
                 username, password);
     }
 
