@@ -237,6 +237,8 @@ public class Main {
         Throwable[] createThrowable = new Throwable[1];
         try (AdminClient adminClient = AdminClient.create(props)) {
             // list topics
+            LOG.error("here are the props: " + props);
+            System.out.println("here are the props: " + props);
             final Set<String> results = adminClient.listTopics().names().get();
             LOG.error("here are the topics: " + results);
             System.out.println("here are the topics: " + results);
