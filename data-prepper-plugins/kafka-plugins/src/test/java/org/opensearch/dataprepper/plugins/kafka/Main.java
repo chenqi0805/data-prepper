@@ -228,7 +228,7 @@ public class Main {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, Arrays.asList(servers.split(",")));
 //        props.put("security.protocol", "SASL_PLAINTEXT");
-        props.put("ssl.endpoint.identification.algorithm", "");
+        props.put("ssl.endpoint.identification.algorithm", "https");
         props.put("security.protocol", "SASL_SSL");
         props.put("request.timeout.ms", 20000);
         props.put("sasl.mechanism", "PLAIN");
