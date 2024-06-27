@@ -233,7 +233,31 @@ public class Main {
         props.put("request.timeout.ms", 20000);
         props.put("sasl.mechanism", "PLAIN");
         props.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+ username +"\" password=\""+ password +"\";");
-        props.put("ssl.engine.factory.class", InsecureSslEngineFactory.class);
+        String certificate = "-----BEGIN CERTIFICATE-----\n" +
+                "MIIDwzCCAqugAwIBAgIELWwG9DANBgkqhkiG9w0BAQsFADCBkTEUMBIGA1UEBhML\n" +
+                "WW91ckNvdW50cnkxEjAQBgNVBAgTCVlvdXJTdGF0ZTERMA8GA1UEBxMIWW91ckNp\n" +
+                "dHkxEDAOBgNVBAoTB1lvdXJPcmcxFDASBgNVBAsTC1lvdXJPcmdVbml0MSowKAYD\n" +
+                "VQQDEyFzZWxmLW1hbmFnZWQta2Fma2EuY3VzdG9tLWFvcy5jb20wHhcNMjQwNjI3\n" +
+                "MDExNjE1WhcNMzQwNjI1MDExNjE1WjCBkTEUMBIGA1UEBhMLWW91ckNvdW50cnkx\n" +
+                "EjAQBgNVBAgTCVlvdXJTdGF0ZTERMA8GA1UEBxMIWW91ckNpdHkxEDAOBgNVBAoT\n" +
+                "B1lvdXJPcmcxFDASBgNVBAsTC1lvdXJPcmdVbml0MSowKAYDVQQDEyFzZWxmLW1h\n" +
+                "bmFnZWQta2Fma2EuY3VzdG9tLWFvcy5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IB\n" +
+                "DwAwggEKAoIBAQCI+j7g8b2SpX6cQAHpRj+YsxDhem+QqBSHwYQzE1v+/xIsjeXf\n" +
+                "8rsFju/Ubqhpww7BmN+FRArl48MoEpd6BT2ce//wQ6LBHdBxGIADF16hWC8V0Ndw\n" +
+                "t4nENSdrMqQuji7Ak9X1XNvF3c2G8k8lPDg8RXdDLbrnYX34jPK3qYle9+PLR7Mn\n" +
+                "/7RjuDiRLfWJVv8RcyS6kavgXiqtPTo8LO3n9ISlXiDL8thFLkbxxAw/UDCDGhHm\n" +
+                "1v0alsTJX5FMXuI280X63gabyAGAIrO+d0usvdg50HN5YX8SctFXgSsREdWL6drV\n" +
+                "GRdD8DeUd1wi1C4NIYdWOXDm0yBbyEnN5z5DAgMBAAGjITAfMB0GA1UdDgQWBBTh\n" +
+                "zUv1Bcjfg02B/GCZqAg4Xebp4DANBgkqhkiG9w0BAQsFAAOCAQEAMBpjWDGweUbB\n" +
+                "Zklva7Bw08Wkk/PvSFWZwEWYy8IYTGdT44IMnZ4Oq7phvt9cdYGE7hc9GzE11bMM\n" +
+                "EBHDbBhPl8EO8oLbtz7HB8Y9yrhI87XCytyZOH14E9kFuqmKCA1+uGMPRjGWPnHF\n" +
+                "Z2n/OECz5BW/+pbCOOCxO2j3tYJ65GurCy6C6T4LjjhcISML8XThoTbj8SB/43zI\n" +
+                "JM/aHQufPmgvCYnk8fXNyOMyQjIO4NyifZeuKDjOIkUoNP2q6H5u/ov1y8Sw2IxR\n" +
+                "GoYabcx4CegXePw5bULdXnHH26T8R8iRRY32sXlylM4IyKa9BgmK7DlJqhrRxK9b\n" +
+                "46qI57y1tA==\n" +
+                "-----END CERTIFICATE-----";
+        props.put("ssl.engine.factory.class", CustomClientSslEngineFactory.class);
+        props.put("certificateContent", certificate);
         Throwable[] createThrowable = new Throwable[1];
         try (AdminClient adminClient = AdminClient.create(props)) {
             // list topics
