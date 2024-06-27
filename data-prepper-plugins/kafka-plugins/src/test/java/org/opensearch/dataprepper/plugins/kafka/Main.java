@@ -233,7 +233,7 @@ public class Main {
         props.put("request.timeout.ms", 20000);
         props.put("sasl.mechanism", "PLAIN");
         props.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+ username +"\" password=\""+ password +"\";");
-        props.put("ssl.engine.factory.class", CustomClientSslEngineFactory.class);
+        props.put("ssl.engine.factory.class", InsecureSslEngineFactory.class);
         Throwable[] createThrowable = new Throwable[1];
         try (AdminClient adminClient = AdminClient.create(props)) {
             // list topics
