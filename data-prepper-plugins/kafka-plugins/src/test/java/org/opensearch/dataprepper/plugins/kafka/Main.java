@@ -17,7 +17,10 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
+import org.opensearch.dataprepper.parser.config.DataPrepperAppConfiguration;
 import org.opensearch.dataprepper.plugins.kafka.util.InsecureSslEngineFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Main {
+    private static final Logger LOG = LoggerFactory.getLogger(Main.class);
     public static class UserRecord {
         @JsonProperty
         public String name;
@@ -233,6 +237,7 @@ public class Main {
         try (AdminClient adminClient = AdminClient.create(props)) {
             // list topics
             final Set<String> results = adminClient.listTopics().names().get();
+            LOG.error("here are the topics: " + results);
             System.out.println("here are the topics: " + results);
             System.out.println("Topic list successfully.");
         } catch (InterruptedException | ExecutionException e) {
