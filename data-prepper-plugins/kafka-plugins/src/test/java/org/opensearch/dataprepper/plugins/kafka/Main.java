@@ -18,6 +18,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
 import org.opensearch.dataprepper.parser.config.DataPrepperAppConfiguration;
+import org.opensearch.dataprepper.plugins.kafka.util.CustomClientSslEngineFactory;
 import org.opensearch.dataprepper.plugins.kafka.util.InsecureSslEngineFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -232,7 +233,7 @@ public class Main {
         props.put("request.timeout.ms", 20000);
         props.put("sasl.mechanism", "PLAIN");
         props.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\""+ username +"\" password=\""+ password +"\";");
-        props.put("ssl.engine.factory.class", InsecureSslEngineFactory.class);
+        props.put("ssl.engine.factory.class", CustomClientSslEngineFactory.class);
         Throwable[] createThrowable = new Throwable[1];
         try (AdminClient adminClient = AdminClient.create(props)) {
             // list topics
