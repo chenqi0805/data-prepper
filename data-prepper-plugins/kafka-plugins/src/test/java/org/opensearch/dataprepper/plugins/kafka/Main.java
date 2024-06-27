@@ -223,7 +223,7 @@ public class Main {
         }
     }
 
-    public static void listTopics(String servers, String username, String password) {
+    public static void listTopics(String servers, String username, String password) throws ExecutionException, InterruptedException {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, Arrays.asList(servers.split(",")));
 //        props.put("security.protocol", "SASL_PLAINTEXT");
@@ -241,7 +241,7 @@ public class Main {
             System.out.println("here are the topics: " + results);
             System.out.println("Topic list successfully.");
         } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+            throw e;
         }
     }
 
