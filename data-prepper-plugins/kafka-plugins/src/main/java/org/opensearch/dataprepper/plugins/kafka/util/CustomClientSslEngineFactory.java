@@ -24,7 +24,9 @@ public class CustomClientSslEngineFactory implements SslEngineFactory {
 
     @Override
     public void configure(Map<String, ?> configs) {
-        certificateContent = configs.get("certificateContent").toString();
+        if (configs.get("certificateContent") != null) {
+            certificateContent = configs.get("certificateContent").toString();
+        }
     }
 
     private TrustManager[] getTrustManager() {
