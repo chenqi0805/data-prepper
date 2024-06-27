@@ -275,7 +275,7 @@ public class Main {
 
     @Test
     void listTopics() throws Throwable {
-        listTopics("self-managed-kafka.custom-aos.com:9096", "admin", "admin");
+        listTopics("ip-172-31-0-78.us-west-2.compute.internal:9096", "admin", "admin");
     }
 
     public static void main(String[] args) {
