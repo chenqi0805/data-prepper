@@ -109,6 +109,19 @@ protobuf {
 
 test {
     useJUnitPlatform()
+
+    testLogging {
+        events "passed", "skipped", "failed"
+
+        exceptionFormat "full" // Options: "short", "full", "none"
+
+        showExceptions true
+        showCauses true
+        showStackTraces true
+
+        // Optional: To show which test caused the failure
+        showStandardStreams true
+    }
 }
 
 task integrationTest(type: Test) {
