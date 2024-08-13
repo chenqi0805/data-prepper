@@ -10,6 +10,7 @@ application {
 dependencies {
     implementation project(':data-prepper-plugins')
     implementation project(':data-prepper-plugin-framework')
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'org.reflections:reflections:0.10.2'
     implementation 'com.github.victools:jsonschema-maven-plugin:4.35.0'
